@@ -1,0 +1,909 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Truck, MapPin, User, Plus, LogOut, FileText, 
+  Navigation, Bell, Wifi, WifiOff, Trash2, Shield, AlertTriangle 
+} from 'lucide-react';
+import MapView from './components/MapView';
+import SpeedChart from './components/SpeedChart';
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+const WS_BASE  = import.meta.env.VITE_API_BASE
+  ? import.meta.env.VITE_API_BASE.replace('https://', 'wss://').replace('http://', 'ws://')
+  : 'ws://localhost:8000';
+
+export default function App() {
+  // Authentication State
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  // Core Data Lists
+  const [vehicles, setVehicles] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [geofences, setGeofences] = useState([]);
+  const [recentEvents, setRecentEvents] = useState([]);
+  const [trips, setTrips] = useState([]);
+  
+  // Selection States
+  const [selectedVehicleId, setSelectedVehicleId] = useState(null);
+  const [selectedTripId, setSelectedTripId] = useState(null);
+  const [activeTripPoints, setActiveTripPoints] = useState([]);
+
+  // Modals Visibility
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [showDriverModal, setShowDriverModal] = useState(false);
+  const [showGeofenceModal, setShowGeofenceModal] = useState(false);
+
+  // New Entity Form Fields
+  const [newVehicle, setNewVehicle] = useState({ reg_number: '', model: '', driver_id: '', device_token: '' });
+  const [newDriver, setNewDriver] = useState({ name: '', phone: '', license_no: '' });
+  const [newGeofence, setNewGeofence] = useState({ name: '', center_lat: 0, center_lng: 0, radius_m: 500 });
+
+  // WebSockets and Toasts
+  const [wsConnected, setWsConnected] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const wsRef = useRef(null);
+
+  // Helper to add dynamic floating toast notifications
+  const addToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 6000);
+  };
+
+  // Fetch helper with Authorization headers
+  const apiFetch = async (endpoint, options = {}) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...options.headers
+    };
+    const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    if (res.status === 401) {
+      handleLogout();
+      throw new Error('Unauthorized');
+    }
+    return res;
+  };
+
+  // Fetch initial data once logged in
+  useEffect(() => {
+    if (!token) return;
+    
+    const loadData = async () => {
+      try {
+        // Fetch vehicles
+        const vRes = await apiFetch('/api/vehicles');
+        const vData = await vRes.json();
+        
+        // Fetch latest coordinates for each vehicle
+        const vehiclesWithLocations = await Promise.all(vData.map(async (v) => {
+          try {
+            const locRes = await apiFetch(`/api/vehicles/${v.id}/live`);
+            const locData = await locRes.json();
+            if (locData) {
+              return { ...v, latitude: locData.latitude, longitude: locData.longitude, speed_kmph: locData.speed_kmph, heading: locData.heading, recorded_at: locData.recorded_at, address: locData.address };
+            }
+          } catch (e) {}
+          return { ...v, latitude: null, longitude: null, speed_kmph: 0, heading: 0, address: null };
+        }));
+        
+        setVehicles(vehiclesWithLocations);
+        if (vehiclesWithLocations.length > 0 && !selectedVehicleId) {
+          setSelectedVehicleId(vehiclesWithLocations[0].id);
+        }
+
+        // Fetch drivers
+        const dRes = await apiFetch('/api/drivers');
+        const dData = await dRes.json();
+        setDrivers(dData);
+
+        // Fetch recent geofence violations
+        const eRes = await apiFetch('/api/geofences/events/recent');
+        const eData = await eRes.json();
+        setRecentEvents(eData);
+      } catch (err) {
+        console.error('Failed to load initial metrics', err);
+      }
+    };
+    
+    loadData();
+    // Poll updates every 15 seconds to ensure sync if websockets drop
+    const interval = setInterval(loadData, 15000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  // Fetch geofences and trips when a vehicle is selected
+  useEffect(() => {
+    if (!token || !selectedVehicleId) return;
+
+    const loadVehicleSubData = async () => {
+      try {
+        // Load geofences
+        const gRes = await apiFetch(`/api/geofences/vehicle/${selectedVehicleId}`);
+        const gData = await gRes.json();
+        setGeofences(gData);
+
+        // Load trips
+        const tRes = await apiFetch(`/api/vehicles/${selectedVehicleId}/trips`);
+        const tData = await tRes.json();
+        setTrips(tData);
+        
+        // Reset selected trip details unless active trip exists
+        const activeTrip = tData.find(t => !t.end_time);
+        if (activeTrip) {
+          setSelectedTripId(activeTrip.id);
+        } else if (tData.length > 0) {
+          setSelectedTripId(tData[0].id);
+        } else {
+          setSelectedTripId(null);
+          setActiveTripPoints([]);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    loadVehicleSubData();
+  }, [selectedVehicleId, token]);
+
+  // Fetch trip coordinates when trip selection changes
+  useEffect(() => {
+    if (!token || !selectedTripId) {
+      setActiveTripPoints([]);
+      return;
+    }
+
+    const loadTripDetails = async () => {
+      try {
+        const res = await apiFetch(`/api/trips/${selectedTripId}`);
+        const data = await res.json();
+        setActiveTripPoints(data.route_points || []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    loadTripDetails();
+  }, [selectedTripId, token]);
+
+  // Connect WebSockets for Real-time Streaming
+  useEffect(() => {
+    if (!token) return;
+
+    const connectWebSocket = () => {
+      const ws = new WebSocket(`${WS_BASE}/ws/live`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsConnected(true);
+        addToast('WebSocket connection established. Live tracking active!', 'success');
+      };
+
+      ws.onclose = () => {
+        setWsConnected(false);
+        // Attempt reconnection after 4 seconds
+        setTimeout(connectWebSocket, 4000);
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.event_type === 'location_update') {
+          const loc = msg.data;
+          
+          // 1. Update matching vehicle coordinates inside list
+          setVehicles(prev => prev.map(v => {
+            if (v.id === loc.vehicle_id) {
+              return {
+                ...v,
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+                speed_kmph: loc.speed_kmph,
+                heading: loc.heading,
+                recorded_at: loc.recorded_at,
+                address: loc.address
+              };
+            }
+            return v;
+          }));
+
+          // 2. If the updated vehicle is the currently selected one, append point to active polyline
+          if (loc.vehicle_id === selectedVehicleId) {
+            setActiveTripPoints(prev => {
+              // Ensure no duplicate timestamps
+              if (prev.some(p => p.recorded_at === loc.recorded_at)) return prev;
+              return [...prev, {
+                id: Date.now(),
+                vehicle_id: loc.vehicle_id,
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+                speed_kmph: loc.speed_kmph,
+                heading: loc.heading,
+                recorded_at: loc.recorded_at,
+                address: loc.address
+              }];
+            });
+
+            // Refresh trips to show new distance
+            if (loc.active_trip) {
+              setTrips(prev => prev.map(t => {
+                if (t.id === loc.active_trip.id) {
+                  return { ...t, ...loc.active_trip };
+                }
+                return t;
+              }));
+            }
+          }
+
+          // 3. Process any geofence alerts triggered by this telemetry
+          if (msg.geofence_events && msg.geofence_events.length > 0) {
+            msg.geofence_events.forEach(evt => {
+              const action = evt.event_type === 'enter' ? 'entered' : 'exited';
+              addToast(`⚠️ Alert: Vehicle ${loc.reg_number} has ${action} geofence "${evt.geofence_name}"!`, 'warning');
+              
+              // Prepend to recent events feed
+              setRecentEvents(prev => [
+                {
+                  id: evt.id,
+                  vehicle_id: evt.vehicle_id,
+                  event_type: evt.event_type,
+                  occurred_at: evt.occurred_at,
+                  geofence: { name: evt.geofence_name }
+                },
+                ...prev
+              ]);
+            });
+          }
+        }
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [token, selectedVehicleId]);
+
+  // Auth Handlers
+  const handleLogin = async (e) => {
+    if (e) e.preventDefault();
+    setAuthError('');
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', username);
+      formData.append('password', password);
+
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData
+      });
+
+      if (!res.ok) {
+        throw new Error('Incorrect username or password');
+      }
+
+      const data = await res.json();
+      localStorage.setItem('token', data.access_token);
+      setToken(data.access_token);
+      addToast('Logged in successfully', 'success');
+    } catch (err) {
+      setAuthError(err.message);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken('');
+    setVehicles([]);
+    setDrivers([]);
+    setGeofences([]);
+    setTrips([]);
+    setSelectedVehicleId(null);
+    setSelectedTripId(null);
+  };
+
+  // Entity Creation Handlers
+  const handleCreateVehicle = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...newVehicle,
+        driver_id: newVehicle.driver_id ? parseInt(newVehicle.driver_id) : null
+      };
+      const res = await apiFetch('/api/vehicles', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const v = await res.json();
+        setVehicles(prev => [...prev, { ...v, latitude: null, longitude: null, speed_kmph: 0, heading: 0 }]);
+        setShowVehicleModal(false);
+        setNewVehicle({ reg_number: '', model: '', driver_id: '', device_token: '' });
+        addToast('Vehicle registered successfully', 'success');
+      } else {
+        const error = await res.json();
+        alert(error.detail || 'Error registering vehicle');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateDriver = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await apiFetch('/api/drivers', {
+        method: 'POST',
+        body: JSON.stringify(newDriver)
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setDrivers(prev => [...prev, d]);
+        setShowDriverModal(false);
+        setNewDriver({ name: '', phone: '', license_no: '' });
+        addToast('Driver created successfully', 'success');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateGeofence = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      const payload = {
+        ...newGeofence,
+        vehicle_id: selectedVehicleId
+      };
+      const res = await apiFetch('/api/geofences', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const g = await res.json();
+        setGeofences(prev => [...prev, g]);
+        setShowGeofenceModal(false);
+        addToast(`Geofence "${newGeofence.name}" saved!`, 'success');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Callback from Map clicking to place geofence
+  const handleMapAddGeofence = (lat, lng) => {
+    setNewGeofence(prev => ({
+      ...prev,
+      name: `Geofence Zone ${geofences.length + 1}`,
+      center_lat: parseFloat(lat.toFixed(6)),
+      center_lng: parseFloat(lng.toFixed(6))
+    }));
+    setShowGeofenceModal(true);
+  };
+
+  // Render Login Layout
+  if (!token) {
+    return (
+      <div className="auth-container">
+        <div className="auth-card">
+          <div className="auth-header">
+            <h1>FLEET TRACKING</h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Log in to access your tracking control center</p>
+          </div>
+          {authError && (
+            <div style={{
+              backgroundColor: 'rgba(244, 63, 94, 0.1)',
+              border: '1px solid var(--accent-rose)',
+              borderRadius: '6px',
+              color: 'var(--accent-rose)',
+              padding: '10px',
+              fontSize: '13px',
+              marginBottom: '20px',
+              textAlign: 'center'
+            }}>
+              {authError}
+            </div>
+          )}
+          <form onSubmit={handleLogin}>
+            <div className="form-group">
+              <label>USERNAME</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                value={username} 
+                onChange={e => setUsername(e.target.value)} 
+                placeholder="admin"
+                required 
+              />
+            </div>
+            <div className="form-group">
+              <label>PASSWORD</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                value={password} 
+                onChange={e => setPassword(e.target.value)} 
+                placeholder="admin123"
+                required 
+              />
+            </div>
+            <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
+              SIGN IN
+            </button>
+          </form>
+          <div style={{ marginTop: '20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+            💡 Hint: use default username <b>admin</b> & password <b>admin123</b>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Find active vehicle object
+  const activeVehicle = vehicles.find(v => v.id === selectedVehicleId);
+  const activeTrip = trips.find(t => t.id === selectedTripId);
+
+  return (
+    <div className="app-layout">
+      {/* Toast Notification Box */}
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div 
+            key={t.id} 
+            className="toast"
+            style={{ 
+              borderColor: t.type === 'warning' ? 'var(--accent-rose)' : t.type === 'success' ? 'var(--accent-emerald)' : 'var(--accent-cyan)' 
+            }}
+          >
+            {t.type === 'warning' ? <AlertTriangle size={16} color="var(--accent-rose)" /> : <Bell size={16} color="var(--accent-cyan)" />}
+            <div>{t.message}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* LEFT SIDEBAR: Vehicles & Administration */}
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <div className="logo">
+            <Truck size={22} />
+            <span>FLEET</span>TRACKER
+          </div>
+        </div>
+
+        <div style={{ padding: '16px 16px 8px', display: 'flex', gap: '8px' }}>
+          <button className="nav-btn" style={{ flex: 1 }} onClick={() => setShowVehicleModal(true)}>
+            <Plus size={14} /> Add Vehicle
+          </button>
+          <button className="nav-btn" style={{ flex: 1 }} onClick={() => setShowDriverModal(true)}>
+            <Plus size={14} /> Add Driver
+          </button>
+        </div>
+
+        <div className="vehicle-list">
+          <div className="section-title" style={{ padding: '0 8px 8px' }}>
+            Active Fleet ({vehicles.length})
+          </div>
+          {vehicles.map(v => {
+            const speed = v.speed_kmph || 0;
+            const status = v.latitude ? (speed > 2.0 ? 'moving' : 'idle') : 'offline';
+            return (
+              <div 
+                key={v.id} 
+                className={`vehicle-card ${selectedVehicleId === v.id ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedVehicleId(v.id);
+                  setSelectedTripId(null);
+                }}
+              >
+                <div className="vehicle-card-header">
+                  <div className="vehicle-reg">{v.reg_number}</div>
+                  <div className={`status-dot ${status}`}></div>
+                </div>
+                <div className="vehicle-meta">
+                  <span>{v.model || 'Unknown Model'}</span>
+                  <span>{v.latitude ? `${speed.toFixed(0)} km/h` : 'No Signal'}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justify: 'center' }}>
+              <User size={16} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: '500' }}>Operator</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Online</div>
+            </div>
+          </div>
+          <button 
+            onClick={handleLogout}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+            title="Log Out"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* RIGHT WORKSPACE: Maps, Charts & Feeds */}
+      <div className="main-content">
+        <div className="top-nav">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div>
+              <h2 style={{ margin: 0 }}>{activeVehicle ? `${activeVehicle.reg_number} Tracker` : 'Fleet Control Panel'}</h2>
+              {activeVehicle && activeVehicle.address && (
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', maxWidth: '350px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  📍 {activeVehicle.address}
+                </div>
+              )}
+            </div>
+            
+            {/* WebSocket status light */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              background: 'rgba(255,255,255,0.03)', 
+              padding: '4px 8px', 
+              borderRadius: '20px', 
+              fontSize: '11px',
+              border: '1px solid var(--border-color)'
+            }}>
+              {wsConnected ? (
+                <>
+                  <Wifi size={12} color="var(--accent-emerald)" />
+                  <span style={{ color: 'var(--text-secondary)' }}>Live Sync</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff size={12} color="var(--accent-rose)" />
+                  <span style={{ color: 'var(--accent-rose)' }}>Connecting...</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="nav-actions">
+            {/* Displaying active trip details */}
+            {activeVehicle && (
+              <div style={{ fontSize: '13px', marginRight: '16px', color: 'var(--text-secondary)' }}>
+                {activeVehicle.driver ? `Driver: ${activeVehicle.driver.name}` : 'No Driver Assigned'}
+              </div>
+            )}
+
+            {/* Trip list selector */}
+            {trips.length > 0 && (
+              <select 
+                style={{
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-primary)',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  outline: 'none',
+                  maxWidth: '280px'
+                }}
+                value={selectedTripId || ''}
+                onChange={e => setSelectedTripId(parseInt(e.target.value))}
+              >
+                {trips.map(t => {
+                  const start = new Date(t.start_time).toLocaleDateString();
+                  const fromLabel = t.start_address
+                    ? t.start_address.split(',').slice(0, 2).join(',')
+                    : (t.start_lat ? `${t.start_lat.toFixed(4)}, ${t.start_lng.toFixed(4)}` : '?');
+                  return (
+                    <option key={t.id} value={t.id}>
+                      Trip #{t.id} ({start}) · {t.distance_km.toFixed(1)} km · From: {fromLabel}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+
+            {/* Generate PDF Report Button */}
+            {selectedTripId && (
+              <a 
+                href={`${API_BASE}/api/trips/${selectedTripId}/report.pdf`}
+                target="_blank" 
+                rel="noreferrer" 
+                className="nav-btn"
+                style={{ textDecoration: 'none' }}
+              >
+                <FileText size={14} /> Export PDF Report
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Dynamic Grid Layout */}
+        <div className="dashboard-grid">
+          {/* Map Section */}
+          <div className="map-container">
+            <MapView 
+              vehicles={vehicles}
+              selectedVehicleId={selectedVehicleId}
+              activeTripPoints={activeTripPoints}
+              geofences={geofences}
+              onAddGeofenceClick={handleMapAddGeofence}
+            />
+            {/* Journey Route Address Strip */}
+            {activeTrip && (activeTrip.start_address || activeTrip.end_address) && (
+              <div style={{
+                position: 'absolute',
+                bottom: '12px',
+                left: '12px',
+                right: '12px',
+                background: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'center',
+                fontSize: '12px',
+                zIndex: 1000,
+                pointerEvents: 'none'
+              }}>
+                <Navigation size={14} color="var(--accent-emerald)" style={{ flexShrink: 0 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                  {activeTrip.start_address && (
+                    <div style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: 'var(--accent-emerald)', fontWeight: '600' }}>FROM </span>
+                      {activeTrip.start_address}
+                    </div>
+                  )}
+                  {activeTrip.end_address && (
+                    <div style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: 'var(--accent-rose)', fontWeight: '600' }}>TO &nbsp;&nbsp;&nbsp;</span>
+                      {activeTrip.end_address}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Speed Chart */}
+          <div className="chart-container">
+            <div className="section-title">
+              Speed Curve
+              {activeTrip && (
+                <span style={{ fontSize: '11px', textTransform: 'none', fontWeight: 'normal' }}>
+                  Max: {activeTrip.max_speed_kmph.toFixed(1)} km/h | Avg: {activeTrip.avg_speed_kmph.toFixed(1)} km/h
+                </span>
+              )}
+            </div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <SpeedChart routePoints={activeTripPoints} />
+            </div>
+          </div>
+
+          {/* Recent Geofence Alerts feed */}
+          <div className="alerts-container">
+            <div className="section-title">
+              Security Logs (Geofencing)
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {recentEvents.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', marginTop: '20px' }}>
+                  No boundary violations logged.
+                </div>
+              ) : (
+                recentEvents.map(evt => {
+                  const timeStr = new Date(evt.occurred_at).toLocaleTimeString();
+                  const action = evt.event_type === 'enter' ? 'entered' : 'exited';
+                  
+                  return (
+                    <div key={evt.id} className={`alert-item ${evt.event_type}`}>
+                      <div style={{ marginTop: '2px' }}>
+                        <Shield size={14} color={evt.event_type === 'enter' ? 'var(--accent-emerald)' : 'var(--accent-rose)'} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: '500' }}>
+                          Geofence {action}
+                        </div>
+                        <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          Vehicle crossed <b>{evt.geofence?.name || 'Boundary'}</b>.
+                        </div>
+                        <div className="alert-meta">{timeStr}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MODALS */}
+      {/* 1. Add Vehicle Modal */}
+      {showVehicleModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Register New Fleet Vehicle</h3>
+              <button className="modal-close" onClick={() => setShowVehicleModal(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleCreateVehicle}>
+              <div className="form-group">
+                <label>REGISTRATION NUMBER</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={newVehicle.reg_number} 
+                  onChange={e => setNewVehicle(prev => ({ ...prev, reg_number: e.target.value.toUpperCase() }))}
+                  placeholder="KA-01-ME-1234"
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label>MODEL</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={newVehicle.model} 
+                  onChange={e => setNewVehicle(prev => ({ ...prev, model: e.target.value }))}
+                  placeholder="Tesla Model 3"
+                />
+              </div>
+              <div className="form-group">
+                <label>DEVICE TOKEN (identifies tracking device/phone)</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={newVehicle.device_token} 
+                  onChange={e => setNewVehicle(prev => ({ ...prev, device_token: e.target.value }))}
+                  placeholder="tracker-device-123"
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label>ASSIGN DRIVER</label>
+                <select 
+                  className="form-input"
+                  value={newVehicle.driver_id}
+                  onChange={e => setNewVehicle(prev => ({ ...prev, driver_id: e.target.value }))}
+                >
+                  <option value="">No Driver</option>
+                  {drivers.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={() => setShowVehicleModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ width: 'auto' }}>Register Vehicle</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Add Driver Modal */}
+      {showDriverModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Create Driver Record</h3>
+              <button className="modal-close" onClick={() => setShowDriverModal(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleCreateDriver}>
+              <div className="form-group">
+                <label>DRIVER NAME</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={newDriver.name} 
+                  onChange={e => setNewDriver(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="John Doe"
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label>PHONE NUMBER</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={newDriver.phone} 
+                  onChange={e => setNewDriver(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+1234567890"
+                />
+              </div>
+              <div className="form-group">
+                <label>LICENSE NUMBER</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={newDriver.license_no} 
+                  onChange={e => setNewDriver(prev => ({ ...prev, license_no: e.target.value }))}
+                  placeholder="DL-123456"
+                />
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={() => setShowDriverModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ width: 'auto' }}>Create Record</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Add Geofence Modal */}
+      {showGeofenceModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Set Circular Geofence Boundary</h3>
+              <button className="modal-close" onClick={() => setShowGeofenceModal(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleCreateGeofence}>
+              <div className="form-group">
+                <label>GEOFENCE ZONE NAME</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={newGeofence.name} 
+                  onChange={e => setNewGeofence(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Bangalore Office Area"
+                  required 
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>CENTER LATITUDE</label>
+                  <input 
+                    type="number" 
+                    step="0.000001"
+                    className="form-input" 
+                    value={newGeofence.center_lat} 
+                    onChange={e => setNewGeofence(prev => ({ ...prev, center_lat: parseFloat(e.target.value) }))}
+                    required 
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>CENTER LONGITUDE</label>
+                  <input 
+                    type="number" 
+                    step="0.000001"
+                    className="form-input" 
+                    value={newGeofence.center_lng} 
+                    onChange={e => setNewGeofence(prev => ({ ...prev, center_lng: parseFloat(e.target.value) }))}
+                    required 
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>RADIUS (METERS)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  value={newGeofence.radius_m} 
+                  onChange={e => setNewGeofence(prev => ({ ...prev, radius_m: parseFloat(e.target.value) }))}
+                  placeholder="500"
+                  required 
+                />
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-secondary" onClick={() => setShowGeofenceModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ width: 'auto' }}>Create Boundary</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
