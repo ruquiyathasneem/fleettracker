@@ -95,9 +95,6 @@ export default function App() {
         }));
         
         setVehicles(vehiclesWithLocations);
-        if (vehiclesWithLocations.length > 0 && !selectedVehicleId) {
-          setSelectedVehicleId(vehiclesWithLocations[0].id);
-        }
 
         // Fetch recent geofence violations
         const eRes = await apiFetch('/api/geofences/events/recent');
@@ -113,6 +110,13 @@ export default function App() {
     const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
   }, [token]);
+
+  // Auto-select first vehicle on load if none selected
+  useEffect(() => {
+    if (vehicles.length > 0 && !selectedVehicleId) {
+      setSelectedVehicleId(vehicles[0].id);
+    }
+  }, [vehicles, selectedVehicleId]);
 
   // Fetch geofences and trips when a vehicle is selected
   useEffect(() => {
@@ -183,7 +187,6 @@ export default function App() {
 
       ws.onopen = () => {
         setWsConnected(true);
-        addToast('WebSocket connection established. Live tracking active!', 'success');
       };
 
       ws.onclose = () => {
@@ -653,7 +656,7 @@ export default function App() {
               {wsConnected ? (
                 <>
                   <Wifi size={12} color="var(--accent-emerald)" />
-                  <span style={{ color: 'var(--text-secondary)' }}>Live Sync</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Server Connected</span>
                 </>
               ) : (
                 <>
