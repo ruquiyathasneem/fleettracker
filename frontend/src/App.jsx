@@ -169,6 +169,11 @@ export default function App() {
   }, [selectedTripId, token]);
 
   // Connect WebSockets for Real-time Streaming
+  const selectedVehicleIdRef = useRef(selectedVehicleId);
+  useEffect(() => {
+    selectedVehicleIdRef.current = selectedVehicleId;
+  }, [selectedVehicleId]);
+
   useEffect(() => {
     if (!token) return;
 
@@ -209,7 +214,7 @@ export default function App() {
           }));
 
           // 2. If the updated vehicle is the currently selected one, append point to active polyline
-          if (loc.vehicle_id === selectedVehicleId) {
+          if (loc.vehicle_id === selectedVehicleIdRef.current) {
             setActiveTripPoints(prev => {
               // Ensure no duplicate timestamps
               if (prev.some(p => p.recorded_at === loc.recorded_at)) return prev;
@@ -272,7 +277,7 @@ export default function App() {
         wsRef.current.close();
       }
     };
-  }, [token, selectedVehicleId]);
+  }, [token]);
 
   // Auth Handlers
   const handleLogin = async (e) => {
