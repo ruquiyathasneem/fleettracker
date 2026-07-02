@@ -286,6 +286,9 @@
       lastPosition = pos;
       var c = pos.coords;
       var speedKmh = c.speed ? (c.speed * 3.6) : 0;
+      if (speedKmh < 3.0) {
+        speedKmh = 0; // snap low speeds/GPS drift to 0
+      }
       document.getElementById('statLat').textContent = c.latitude.toFixed(6);
       document.getElementById('statLng').textContent = c.longitude.toFixed(6);
       document.getElementById('statSpeed').textContent = speedKmh.toFixed(1);
@@ -393,8 +396,10 @@
       var token = document.getElementById('deviceToken').value.trim();
       var apiUrl = document.getElementById('apiUrl').value.trim();
       if (!token || !apiUrl) return;
-      var c = lastPosition.coords;
       var speedKmh = c.speed ? (c.speed * 3.6) : 0;
+      if (speedKmh < 3.0) {
+        speedKmh = 0; // snap low speeds/GPS drift to 0
+      }
       var payload = {
         device_token: token,
         latitude: c.latitude,
