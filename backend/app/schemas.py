@@ -24,9 +24,10 @@ class VehicleBase(BaseModel):
     model: Optional[str] = None
     driver_id: Optional[int] = None
     device_token: str
+    speed_limit_kmph: Optional[float] = 80.0
 
 class VehicleCreate(VehicleBase):
-    pass
+    driver_name: Optional[str] = None
 
 class VehicleResponse(VehicleBase):
     id: int
@@ -85,6 +86,20 @@ class GeofenceEventResponse(BaseModel):
     event_type: str
     occurred_at: datetime
     geofence: Optional[GeofenceResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class OverspeedEventResponse(BaseModel):
+    id: int
+    vehicle_id: int
+    speed_kmph: float
+    speed_limit_kmph: float
+    latitude: float
+    longitude: float
+    occurred_at: datetime
+    address: Optional[str] = None
 
     class Config:
         from_attributes = True

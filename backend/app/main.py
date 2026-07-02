@@ -5,6 +5,7 @@ from .routers import auth, location, vehicles, geofences, trips, sms
 from .ws_manager import manager
 from .models import User, Driver, Vehicle, Geofence
 import logging
+import os
 
 # Initialize logger
 logging.basicConfig(level=logging.INFO)
@@ -20,10 +21,20 @@ app = FastAPI(
 )
 
 # Set up CORS middleware
+# Allow dynamic frontend URL from environment variables
+origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:8000",
+]
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    origins.append(frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this to the frontend domain
-    allow_credentials=True,
+    allow_origins=["*"] if not frontend_url else origins,
+    allow_credentials=True if frontend_url else False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -77,6 +88,16 @@ def seed_database():
         db.rollback()
     finally:
         db.close()
+
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Mount the static phone tracker files
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+phone_client_dir = os.path.join(project_root, "phone-client")
+print(f"MOUNTING TRACKER CLIENT DIR AT: {phone_client_dir}", flush=True)
+app.mount("/tracker-client", StaticFiles(directory=phone_client_dir), name="tracker-client")
 
 seed_database()
 

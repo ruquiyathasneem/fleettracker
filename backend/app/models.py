@@ -23,6 +23,7 @@ class Vehicle(Base):
     model = Column(String(100))
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
     device_token = Column(String(64), unique=True, nullable=False, index=True)
+    speed_limit_kmph = Column(Float, default=80.0, nullable=False)
     created_at = Column(DateTime, default=func.now())
 
     driver = relationship("Driver", back_populates="vehicles")
@@ -103,3 +104,18 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     password_hash = Column(String(200), nullable=False)
     role = Column(String(20), default="operator")
+
+
+class OverspeedEvent(Base):
+    __tablename__ = "overspeed_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False)
+    speed_kmph = Column(Float, nullable=False)
+    speed_limit_kmph = Column(Float, nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    occurred_at = Column(DateTime, nullable=False)
+    address = Column(String(250), nullable=True)
+
+    vehicle = relationship("Vehicle")

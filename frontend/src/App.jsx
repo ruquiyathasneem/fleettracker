@@ -17,10 +17,10 @@ export default function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
   // Core Data Lists
   const [vehicles, setVehicles] = useState([]);
-  const [drivers, setDrivers] = useState([]);
   const [geofences, setGeofences] = useState([]);
   const [recentEvents, setRecentEvents] = useState([]);
   const [trips, setTrips] = useState([]);
@@ -32,13 +32,16 @@ export default function App() {
 
   // Modals Visibility
   const [showVehicleModal, setShowVehicleModal] = useState(false);
-  const [showDriverModal, setShowDriverModal] = useState(false);
+  const [showEditVehicleModal, setShowEditVehicleModal] = useState(false);
   const [showGeofenceModal, setShowGeofenceModal] = useState(false);
 
   // New Entity Form Fields
-  const [newVehicle, setNewVehicle] = useState({ reg_number: '', model: '', driver_id: '', device_token: '' });
-  const [newDriver, setNewDriver] = useState({ name: '', phone: '', license_no: '' });
+  const [newVehicle, setNewVehicle] = useState({ reg_number: '', model: '', driver_name: '', device_token: '', speed_limit_kmph: 80.0 });
   const [newGeofence, setNewGeofence] = useState({ name: '', center_lat: 0, center_lng: 0, radius_m: 500 });
+
+  // Edit Entity State
+  const [editingVehicle, setEditingVehicle] = useState(null);
+  const [editVehicleForm, setEditVehicleForm] = useState({ reg_number: '', model: '', driver_name: '', device_token: '', speed_limit_kmph: 80.0 });
 
   // WebSockets and Toasts
   const [wsConnected, setWsConnected] = useState(false);
@@ -95,11 +98,6 @@ export default function App() {
         if (vehiclesWithLocations.length > 0 && !selectedVehicleId) {
           setSelectedVehicleId(vehiclesWithLocations[0].id);
         }
-
-        // Fetch drivers
-        const dRes = await apiFetch('/api/drivers');
-        const dData = await dRes.json();
-        setDrivers(dData);
 
         // Fetch recent geofence violations
         const eRes = await apiFetch('/api/geofences/events/recent');
@@ -257,6 +255,12 @@ export default function App() {
               ]);
             });
           }
+
+          // 4. Process overspeed alerts
+          if (msg.overspeed_event) {
+            const evt = msg.overspeed_event;
+            addToast(`⚠️ Speed Alert: Vehicle ${loc.reg_number} went ${evt.speed_kmph.toFixed(1)} km/h! (Limit: ${evt.speed_limit_kmph} km/h)`, 'warning');
+          }
         }
       };
     };
@@ -298,24 +302,49 @@ export default function App() {
     }
   };
 
+  const handleRegister = async (e) => {
+    if (e) e.preventDefault();
+    setAuthError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, role: 'operator' })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || 'Failed to create account');
+      }
+
+      addToast('Account created successfully! Logging you in...', 'success');
+      // Auto login after registration
+      await handleLogin();
+    } catch (err) {
+      setAuthError(err.message);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     setToken('');
     setVehicles([]);
-    setDrivers([]);
     setGeofences([]);
     setTrips([]);
     setSelectedVehicleId(null);
     setSelectedTripId(null);
   };
 
-  // Entity Creation Handlers
+  // Entity Creation & Management Handlers
   const handleCreateVehicle = async (e) => {
     e.preventDefault();
     try {
       const payload = {
-        ...newVehicle,
-        driver_id: newVehicle.driver_id ? parseInt(newVehicle.driver_id) : null
+        reg_number: newVehicle.reg_number,
+        model: newVehicle.model,
+        device_token: newVehicle.device_token,
+        driver_name: newVehicle.driver_name || null,
+        speed_limit_kmph: parseFloat(newVehicle.speed_limit_kmph) || 80.0
       };
       const res = await apiFetch('/api/vehicles', {
         method: 'POST',
@@ -325,7 +354,7 @@ export default function App() {
         const v = await res.json();
         setVehicles(prev => [...prev, { ...v, latitude: null, longitude: null, speed_kmph: 0, heading: 0 }]);
         setShowVehicleModal(false);
-        setNewVehicle({ reg_number: '', model: '', driver_id: '', device_token: '' });
+        setNewVehicle({ reg_number: '', model: '', driver_name: '', device_token: '', speed_limit_kmph: 80.0 });
         addToast('Vehicle registered successfully', 'success');
       } else {
         const error = await res.json();
@@ -336,19 +365,52 @@ export default function App() {
     }
   };
 
-  const handleCreateDriver = async (e) => {
+  const handleUpdateVehicle = async (e) => {
     e.preventDefault();
     try {
-      const res = await apiFetch('/api/drivers', {
-        method: 'POST',
-        body: JSON.stringify(newDriver)
+      const payload = {
+        reg_number: editVehicleForm.reg_number,
+        model: editVehicleForm.model,
+        device_token: editVehicleForm.device_token,
+        driver_name: editVehicleForm.driver_name || null,
+        speed_limit_kmph: parseFloat(editVehicleForm.speed_limit_kmph) || 80.0
+      };
+      const res = await apiFetch(`/api/vehicles/${editingVehicle.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
-        const d = await res.json();
-        setDrivers(prev => [...prev, d]);
-        setShowDriverModal(false);
-        setNewDriver({ name: '', phone: '', license_no: '' });
-        addToast('Driver created successfully', 'success');
+        const updated = await res.json();
+        setVehicles(prev => prev.map(v => v.id === updated.id ? { ...v, ...updated } : v));
+        setShowEditVehicleModal(false);
+        setEditingVehicle(null);
+        addToast('Vehicle updated successfully', 'success');
+      } else {
+        const error = await res.json();
+        alert(error.detail || 'Error updating vehicle');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicleId) => {
+    if (!window.confirm("Are you sure you want to delete this vehicle and all its location logs/trips/geofences?")) {
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/vehicles/${vehicleId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setVehicles(prev => prev.filter(v => v.id !== vehicleId));
+        if (selectedVehicleId === vehicleId) {
+          setSelectedVehicleId(null);
+          setSelectedTripId(null);
+        }
+        addToast('Vehicle deleted successfully', 'success');
+      } else {
+        alert('Error deleting vehicle');
       }
     } catch (e) {
       console.error(e);
@@ -395,7 +457,9 @@ export default function App() {
         <div className="auth-card">
           <div className="auth-header">
             <h1>FLEET TRACKING</h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Log in to access your tracking control center</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+              {isRegisterMode ? 'Create an operator account' : 'Log in to access your tracking control center'}
+            </p>
           </div>
           {authError && (
             <div style={{
@@ -411,7 +475,7 @@ export default function App() {
               {authError}
             </div>
           )}
-          <form onSubmit={handleLogin}>
+          <form onSubmit={isRegisterMode ? handleRegister : handleLogin}>
             <div className="form-group">
               <label>USERNAME</label>
               <input 
@@ -419,7 +483,7 @@ export default function App() {
                 className="form-input" 
                 value={username} 
                 onChange={e => setUsername(e.target.value)} 
-                placeholder="admin"
+                placeholder={isRegisterMode ? "Choose a username" : "admin"}
                 required 
               />
             </div>
@@ -430,17 +494,42 @@ export default function App() {
                 className="form-input" 
                 value={password} 
                 onChange={e => setPassword(e.target.value)} 
-                placeholder="admin123"
+                placeholder={isRegisterMode ? "Choose a password" : "admin123"}
                 required 
               />
             </div>
             <button type="submit" className="btn-primary" style={{ marginTop: '10px' }}>
-              SIGN IN
+              {isRegisterMode ? 'CREATE ACCOUNT' : 'SIGN IN'}
             </button>
           </form>
-          <div style={{ marginTop: '20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-            💡 Hint: use default username <b>admin</b> & password <b>admin123</b>
+          <div style={{ marginTop: '20px', fontSize: '13px', textAlign: 'center' }}>
+            {isRegisterMode ? (
+              <span style={{ color: 'var(--text-secondary)' }}>
+                Already have an account?{' '}
+                <button 
+                  onClick={() => { setIsRegisterMode(false); setAuthError(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                >
+                  Sign In
+                </button>
+              </span>
+            ) : (
+              <span style={{ color: 'var(--text-secondary)' }}>
+                Don't have an account?{' '}
+                <button 
+                  onClick={() => { setIsRegisterMode(true); setAuthError(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                >
+                  Create Account
+                </button>
+              </span>
+            )}
           </div>
+          {!isRegisterMode && (
+            <div style={{ marginTop: '20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+              💡 Hint: use default username <b>admin</b> & password <b>admin123</b>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -477,12 +566,9 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ padding: '16px 16px 8px', display: 'flex', gap: '8px' }}>
-          <button className="nav-btn" style={{ flex: 1 }} onClick={() => setShowVehicleModal(true)}>
+        <div style={{ padding: '16px 16px 8px' }}>
+          <button className="nav-btn" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowVehicleModal(true)}>
             <Plus size={14} /> Add Vehicle
-          </button>
-          <button className="nav-btn" style={{ flex: 1 }} onClick={() => setShowDriverModal(true)}>
-            <Plus size={14} /> Add Driver
           </button>
         </div>
 
@@ -576,9 +662,58 @@ export default function App() {
           <div className="nav-actions">
             {/* Displaying active trip details */}
             {activeVehicle && (
-              <div style={{ fontSize: '13px', marginRight: '16px', color: 'var(--text-secondary)' }}>
-                {activeVehicle.driver ? `Driver: ${activeVehicle.driver.name}` : 'No Driver Assigned'}
-              </div>
+              <>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {activeVehicle.driver ? `Driver: ${activeVehicle.driver.name}` : 'No Driver Assigned'}
+                </div>
+                <div style={{ 
+                  fontSize: '11px', 
+                  background: 'rgba(239, 68, 68, 0.1)', 
+                  border: '1px solid rgba(239, 68, 68, 0.3)', 
+                  color: '#f87171', 
+                  padding: '3px 8px', 
+                  borderRadius: '4px',
+                  marginRight: '8px',
+                  display: 'inline-flex',
+                  alignItems: 'center'
+                }}>
+                  Limit: {activeVehicle.speed_limit_kmph} km/h
+                </div>
+                <button 
+                  className="nav-btn" 
+                  onClick={() => {
+                    setEditingVehicle(activeVehicle);
+                    setEditVehicleForm({
+                      reg_number: activeVehicle.reg_number,
+                      model: activeVehicle.model || '',
+                      device_token: activeVehicle.device_token || '',
+                      driver_name: activeVehicle.driver ? activeVehicle.driver.name : '',
+                      speed_limit_kmph: activeVehicle.speed_limit_kmph || 80.0
+                    });
+                    setShowEditVehicleModal(true);
+                  }}
+                  style={{ padding: '6px 10px', fontSize: '12px' }}
+                >
+                  Edit Vehicle
+                </button>
+                <button 
+                  style={{
+                    background: 'rgba(244, 63, 94, 0.1)',
+                    border: '1px solid var(--accent-rose)',
+                    color: 'var(--accent-rose)',
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '12px'
+                  }}
+                  onClick={() => handleDeleteVehicle(activeVehicle.id)}
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
+              </>
             )}
 
             {/* Trip list selector */}
@@ -771,17 +906,25 @@ export default function App() {
                 />
               </div>
               <div className="form-group">
-                <label>ASSIGN DRIVER</label>
-                <select 
-                  className="form-input"
-                  value={newVehicle.driver_id}
-                  onChange={e => setNewVehicle(prev => ({ ...prev, driver_id: e.target.value }))}
-                >
-                  <option value="">No Driver</option>
-                  {drivers.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
+                <label>DRIVER NAME</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={newVehicle.driver_name} 
+                  onChange={e => setNewVehicle(prev => ({ ...prev, driver_name: e.target.value }))}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div className="form-group">
+                <label>SPEED LIMIT (KM/H)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  value={newVehicle.speed_limit_kmph} 
+                  onChange={e => setNewVehicle(prev => ({ ...prev, speed_limit_kmph: parseFloat(e.target.value) || 0 }))}
+                  placeholder="80"
+                  required
+                />
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setShowVehicleModal(false)}>Cancel</button>
@@ -792,49 +935,71 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. Add Driver Modal */}
-      {showDriverModal && (
+      {/* 1b. Edit Vehicle Modal */}
+      {showEditVehicleModal && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Create Driver Record</h3>
-              <button className="modal-close" onClick={() => setShowDriverModal(false)}>&times;</button>
+              <h3>Edit Fleet Vehicle</h3>
+              <button className="modal-close" onClick={() => { setShowEditVehicleModal(false); setEditingVehicle(null); }}>&times;</button>
             </div>
-            <form onSubmit={handleCreateDriver}>
+            <form onSubmit={handleUpdateVehicle}>
+              <div className="form-group">
+                <label>REGISTRATION NUMBER</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={editVehicleForm.reg_number} 
+                  onChange={e => setEditVehicleForm(prev => ({ ...prev, reg_number: e.target.value.toUpperCase() }))}
+                  placeholder="KA-01-ME-1234"
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label>MODEL</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={editVehicleForm.model} 
+                  onChange={e => setEditVehicleForm(prev => ({ ...prev, model: e.target.value }))}
+                  placeholder="Tesla Model 3"
+                />
+              </div>
+              <div className="form-group">
+                <label>DEVICE TOKEN (identifies tracking device/phone)</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={editVehicleForm.device_token} 
+                  onChange={e => setEditVehicleForm(prev => ({ ...prev, device_token: e.target.value }))}
+                  placeholder="tracker-device-123"
+                  required 
+                />
+              </div>
               <div className="form-group">
                 <label>DRIVER NAME</label>
                 <input 
                   type="text" 
                   className="form-input" 
-                  value={newDriver.name} 
-                  onChange={e => setNewDriver(prev => ({ ...prev, name: e.target.value }))}
+                  value={editVehicleForm.driver_name} 
+                  onChange={e => setEditVehicleForm(prev => ({ ...prev, driver_name: e.target.value }))}
                   placeholder="John Doe"
-                  required 
                 />
               </div>
               <div className="form-group">
-                <label>PHONE NUMBER</label>
+                <label>SPEED LIMIT (KM/H)</label>
                 <input 
-                  type="text" 
+                  type="number" 
                   className="form-input" 
-                  value={newDriver.phone} 
-                  onChange={e => setNewDriver(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="+1234567890"
-                />
-              </div>
-              <div className="form-group">
-                <label>LICENSE NUMBER</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  value={newDriver.license_no} 
-                  onChange={e => setNewDriver(prev => ({ ...prev, license_no: e.target.value }))}
-                  placeholder="DL-123456"
+                  value={editVehicleForm.speed_limit_kmph} 
+                  onChange={e => setEditVehicleForm(prev => ({ ...prev, speed_limit_kmph: parseFloat(e.target.value) || 0 }))}
+                  placeholder="80"
+                  required
                 />
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setShowDriverModal(false)}>Cancel</button>
-                <button type="submit" className="btn-primary" style={{ width: 'auto' }}>Create Record</button>
+                <button type="button" className="btn-secondary" onClick={() => { setShowEditVehicleModal(false); setEditingVehicle(null); }}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ width: 'auto' }}>Save Changes</button>
               </div>
             </form>
           </div>

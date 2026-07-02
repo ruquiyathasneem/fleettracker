@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
 import asyncio
+import math
 import requests
 from ..database import get_db
-from ..models import Vehicle, LocationLog
+from ..models import Vehicle, LocationLog, OverspeedEvent
 from ..schemas import LocationLogCreate, LocationLogResponse
 from ..services.geofence_check import check_geofences_for_location
 from ..services.trip_detector import process_location_for_trip
@@ -15,6 +16,10 @@ router = APIRouter(
     tags=["Location Ingest"]
 )
 
+# In-memory geocoding cache to protect Nominatim API from rate limiting and timeouts
+# Structure: { vehicle_id: (latitude, longitude, resolved_address) }
+GEOCODE_CACHE = {}
+
 def reverse_geocode(lat: float, lng: float) -> str:
     """
     Fetch address description from Nominatim (OpenStreetMap) API.
@@ -23,7 +28,7 @@ def reverse_geocode(lat: float, lng: float) -> str:
     try:
         url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lng}&zoom=18"
         headers = {"User-Agent": "VehicleTrackingSystem/1.0 (Ruquiya Project; contact: developer@example.com)"}
-        response = requests.get(url, headers=headers, timeout=3)
+        response = requests.get(url, headers=headers, timeout=2.5)
         if response.status_code == 200:
             data = response.json()
             # Nominatim returns full address in 'display_name'
@@ -52,10 +57,24 @@ async def post_location(payload: LocationLogCreate, db: Session = Depends(get_db
     if recorded_time.tzinfo is not None:
         recorded_time = recorded_time.replace(tzinfo=None)
         
-    # 3. Resolve human-readable address (non-blocking via thread pool)
+    # 3. Resolve human-readable address (with caching to avoid I/O bottlenecks)
     address = payload.address
     if not address:
-        address = await asyncio.to_thread(reverse_geocode, payload.latitude, payload.longitude)
+        cached = GEOCODE_CACHE.get(vehicle.id)
+        if cached:
+            c_lat, c_lng, c_addr = cached
+            # Approximate distance delta (~0.0005 degrees is roughly 50-60 meters)
+            dist_delta = math.sqrt((payload.latitude - c_lat)**2 + (payload.longitude - c_lng)**2)
+            if dist_delta < 0.0005:
+                address = c_addr
+                
+        if not address:
+            address = await asyncio.to_thread(reverse_geocode, payload.latitude, payload.longitude)
+            # Update cache
+            GEOCODE_CACHE[vehicle.id] = (payload.latitude, payload.longitude, address)
+    else:
+        # If client sent an address, update the cache
+        GEOCODE_CACHE[vehicle.id] = (payload.latitude, payload.longitude, address)
     
     # 4. Create LocationLog
     db_log = LocationLog(
@@ -70,6 +89,32 @@ async def post_location(payload: LocationLogCreate, db: Session = Depends(get_db
     db.add(db_log)
     db.commit()
     db.refresh(db_log)
+    
+    # Check for overspeeding
+    overspeed_event = None
+    if payload.speed_kmph and vehicle.speed_limit_kmph and payload.speed_kmph > vehicle.speed_limit_kmph:
+        db_alert = OverspeedEvent(
+            vehicle_id=vehicle.id,
+            speed_kmph=payload.speed_kmph,
+            speed_limit_kmph=vehicle.speed_limit_kmph,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            occurred_at=recorded_time,
+            address=address
+        )
+        db.add(db_alert)
+        db.commit()
+        db.refresh(db_alert)
+        
+        overspeed_event = {
+            "id": db_alert.id,
+            "speed_kmph": db_alert.speed_kmph,
+            "speed_limit_kmph": db_alert.speed_limit_kmph,
+            "latitude": db_alert.latitude,
+            "longitude": db_alert.longitude,
+            "occurred_at": db_alert.occurred_at.isoformat(),
+            "address": db_alert.address
+        }
     
     # 5. Check Geofences
     geofence_events = check_geofences_for_location(db, vehicle.id, payload.latitude, payload.longitude)
@@ -99,7 +144,8 @@ async def post_location(payload: LocationLogCreate, db: Session = Depends(get_db
                 "max_speed_kmph": active_trip.max_speed_kmph
             } if active_trip else None
         },
-        "geofence_events": geofence_events
+        "geofence_events": geofence_events,
+        "overspeed_event": overspeed_event
     }
     
     await manager.broadcast(ws_payload)

@@ -15,6 +15,13 @@ export default function MapView({
   const markersRef = useRef({});
   const geofencesRef = useRef({});
   const routePolylineRef = useRef(null);
+  
+  const hasFittedRef = useRef(false);
+
+  // Reset fits bounds tracker when selected vehicle changes
+  useEffect(() => {
+    hasFittedRef.current = false;
+  }, [selectedVehicleId]);
 
   // 1. Initialize Leaflet Map (CartoDB Dark Matter theme)
   useEffect(() => {
@@ -215,12 +222,17 @@ export default function MapView({
 
       routePolylineRef.current = polyline;
 
-      // Fit map view bounds around the route path
-      try {
-        map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
-      } catch (e) {
-        // Fallback if coordinates are singular
+      // Fit map view bounds around the route path only once per trip to avoid constant zoom jumping
+      if (!hasFittedRef.current || activeTripPoints.length <= 1) {
+        try {
+          map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+          hasFittedRef.current = true;
+        } catch (e) {
+          // Fallback if coordinates are singular
+        }
       }
+    } else {
+      hasFittedRef.current = false;
     }
   }, [activeTripPoints]);
 

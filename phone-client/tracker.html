@@ -65,8 +65,8 @@
     .form-card h3 { font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; }
     .form-row { display: flex; flex-direction: column; gap: 6px; }
     .form-row label { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-muted); }
-    .form-row input, .form-row select { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 14px; padding: 11px 14px; outline: none; width: 100%; transition: border-color 0.2s; -webkit-appearance: none; }
-    .form-row input:focus, .form-row select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(6,182,212,0.1); }
+    .form-row input:not([type="checkbox"]), .form-row select { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 14px; padding: 11px 14px; outline: none; width: 100%; transition: border-color 0.2s; -webkit-appearance: none; }
+    .form-row input:not([type="checkbox"]):focus, .form-row select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(6,182,212,0.1); }
     .log-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
     .log-card h3 { font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; }
     .log-feed { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
@@ -177,6 +177,10 @@
           <option value="low">Low Accuracy (Network/WiFi - saves battery)</option>
         </select>
       </div>
+      <div class="form-row" style="flex-direction: row; align-items: center; justify-content: space-between; margin-top: 10px;">
+        <label for="mockLocation" style="margin-bottom: 0; cursor: pointer; color: var(--cyan);">MOCK POSITION GENERATOR (bypass real GPS)</label>
+        <input type="checkbox" id="mockLocation" style="width: 18px; height: 18px; accent-color: var(--cyan); margin: 0; cursor: pointer;" checked />
+      </div>
     </div>
 
     <div class="log-card">
@@ -198,8 +202,14 @@
     var isTracking = false, watchId = null, sendIntervalId = null, wakeLock = null;
     var pingCount = 0, sendIntervalSec = 5, lastPosition = null, lastAddress = '';
     var geocodeTimeout = null, lastGeocodeCoords = { lat: null, lng: null };
+    var mockLat = 12.9716, mockLng = 77.5946; // Bangalore coordinates
+    var offlineQueue = JSON.parse(localStorage.getItem('tracker_offline_queue') || '[]');
 
     document.getElementById('initTime').textContent = fmtTime(new Date());
+
+    if (window.location.origin && window.location.protocol.startsWith('http')) {
+      document.getElementById('apiUrl').value = window.location.origin;
+    }
 
     function fmtTime(d) { return d.toTimeString().slice(0,8); }
 
@@ -216,7 +226,14 @@
     function setConnBadge(state) {
       var badge = document.getElementById('connBadge');
       badge.className = 'conn-badge ' + state;
-      document.getElementById('connText').textContent = state === 'online' ? 'Live' : state === 'error' ? 'Error' : 'Offline';
+      var qLen = offlineQueue.length;
+      if (state === 'online') {
+        document.getElementById('connText').textContent = qLen > 0 ? ('Flushing ' + qLen) : 'Live';
+      } else if (state === 'error') {
+        document.getElementById('connText').textContent = qLen > 0 ? (qLen + ' Buffered') : 'Error';
+      } else {
+        document.getElementById('connText').textContent = 'Offline';
+      }
     }
 
     function updateInterval(val) {
@@ -288,7 +305,90 @@
       setConnBadge('error');
     }
 
+    function queueLocation(payload) {
+      if (offlineQueue.length >= 1000) {
+        offlineQueue.shift(); // drop oldest to avoid storage overflow
+      }
+      offlineQueue.push(payload);
+      localStorage.setItem('tracker_offline_queue', JSON.stringify(offlineQueue));
+      addLog('No connection. Buffered ping locally (' + offlineQueue.length + ' stored)', 'warn');
+      setConnBadge('error');
+    }
+
+    var isFlushing = false;
+    async function flushOfflineQueue() {
+      if (isFlushing || offlineQueue.length === 0) return;
+      isFlushing = true;
+      var apiUrl = document.getElementById('apiUrl').value.trim();
+      addLog('Restoring sync... Sending ' + offlineQueue.length + ' buffered logs', 'info');
+      setConnBadge('online');
+
+      while (offlineQueue.length > 0) {
+        var payload = offlineQueue[0];
+        try {
+          var resp = await fetch(apiUrl + '/api/location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (resp.ok) {
+            offlineQueue.shift();
+            localStorage.setItem('tracker_offline_queue', JSON.stringify(offlineQueue));
+            pingCount++;
+            document.getElementById('statPings').textContent = pingCount;
+            document.getElementById('statLastPing').textContent = fmtTime(new Date());
+            setConnBadge('online');
+          } else {
+            addLog('Flush failed: Server error (' + resp.status + '). Will retry.', 'error');
+            setConnBadge('error');
+            break;
+          }
+        } catch(e) {
+          addLog('Flush failed: Network error (' + e.message + '). Will retry.', 'error');
+          setConnBadge('error');
+          break;
+        }
+      }
+      isFlushing = false;
+    }
+
     async function sendPing() {
+      var isMock = document.getElementById('mockLocation').checked;
+      if (isMock) {
+        // simulate moving at roughly 30-50 km/h in a heading direction
+        var speedKmh = 30 + Math.random() * 20; 
+        var headingDeg = (lastPosition && lastPosition.coords.heading !== null) ? lastPosition.coords.heading : Math.random() * 360;
+        headingDeg = (headingDeg + (Math.random() - 0.5) * 30) % 360;
+        
+        var distStep = (speedKmh / 3600) * sendIntervalSec; // km traveled
+        var degLatStep = (distStep / 111.0) * Math.cos(headingDeg * Math.PI / 180.0);
+        var degLngStep = (distStep / (111.0 * Math.cos(mockLat * Math.PI / 180.0))) * Math.sin(headingDeg * Math.PI / 180.0);
+        
+        mockLat += degLatStep;
+        mockLng += degLngStep;
+        
+        lastPosition = {
+          coords: {
+            latitude: mockLat,
+            longitude: mockLng,
+            accuracy: 5.0,
+            speed: speedKmh / 3.6,
+            heading: headingDeg
+          },
+          timestamp: Date.now()
+        };
+        
+        document.getElementById('statLat').textContent = mockLat.toFixed(6);
+        document.getElementById('statLng').textContent = mockLng.toFixed(6);
+        document.getElementById('statSpeed').textContent = speedKmh.toFixed(1);
+        document.getElementById('statHeading').innerHTML = headingToCompass(headingDeg);
+        document.getElementById('statAccuracy').textContent = String.fromCharCode(177) + ' 5 m';
+        document.getElementById('accBadgeContainer').innerHTML = accuracyBadge(5);
+        
+        clearTimeout(geocodeTimeout);
+        geocodeTimeout = setTimeout(function() { reverseGeocode(mockLat, mockLng); }, 1500);
+      }
+
       if (!lastPosition) return;
       var token = document.getElementById('deviceToken').value.trim();
       var apiUrl = document.getElementById('apiUrl').value.trim();
@@ -304,6 +404,14 @@
         recorded_at: new Date().toISOString(),
         address: lastAddress || null
       };
+
+      // If we have items in the queue, buffer this one as well and try to flush everything
+      if (offlineQueue.length > 0) {
+        queueLocation(payload);
+        flushOfflineQueue();
+        return;
+      }
+
       try {
         var resp = await fetch(apiUrl + '/api/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (resp.ok) {
@@ -315,12 +423,10 @@
             addLog('Ping #' + pingCount + ' sent &mdash; ' + c.latitude.toFixed(5) + ', ' + c.longitude.toFixed(5) + ' @ ' + speedKmh.toFixed(1) + ' km/h', 'success');
           }
         } else {
-          setConnBadge('error');
-          addLog('Server error (' + resp.status + ')', 'error');
+          queueLocation(payload);
         }
       } catch(e) {
-        setConnBadge('error');
-        addLog('Network error: ' + e.message, 'error');
+        queueLocation(payload);
       }
     }
 
@@ -331,7 +437,11 @@
     }
 
     async function startTracking() {
-      if (!navigator.geolocation) { addLog('Geolocation not available in this browser.', 'error'); return; }
+      var isMock = document.getElementById('mockLocation').checked;
+      if (!isMock && !navigator.geolocation) { 
+        addLog('Geolocation not available in this browser.', 'error'); 
+        return; 
+      }
       var token = document.getElementById('deviceToken').value.trim();
       var apiUrl = document.getElementById('apiUrl').value.trim();
       if (!token) { addLog('Please enter a Device Token first.', 'warn'); return; }
@@ -346,9 +456,28 @@
       document.getElementById('deviceToken').disabled = true;
       document.getElementById('apiUrl').disabled = true;
       document.getElementById('accuracyMode').disabled = true;
+      document.getElementById('mockLocation').disabled = true;
       addLog('Tracking started &rarr; token: ' + token, 'success');
       addLog('Endpoint: ' + apiUrl + '/api/location', 'info');
-      watchId = navigator.geolocation.watchPosition(onPositionUpdate, onPositionError, { enableHighAccuracy: highAccuracy, maximumAge: 5000, timeout: 15000 });
+      
+      if (isMock) {
+        addLog('Mock location generator active.', 'info');
+        mockLat = 12.9716 + (Math.random() - 0.5) * 0.02; // slight randomized starting point around Bangalore
+        mockLng = 77.5946 + (Math.random() - 0.5) * 0.02;
+        lastPosition = {
+          coords: {
+            latitude: mockLat,
+            longitude: mockLng,
+            accuracy: 5.0,
+            speed: 0.0,
+            heading: 0
+          },
+          timestamp: Date.now()
+        };
+      } else {
+        watchId = navigator.geolocation.watchPosition(onPositionUpdate, onPositionError, { enableHighAccuracy: highAccuracy, maximumAge: 5000, timeout: 15000 });
+      }
+      
       setTimeout(sendPing, 600);
       restartSendInterval();
       await requestWakeLock();
@@ -368,6 +497,7 @@
       document.getElementById('deviceToken').disabled = false;
       document.getElementById('apiUrl').disabled = false;
       document.getElementById('accuracyMode').disabled = false;
+      document.getElementById('mockLocation').disabled = false;
       setConnBadge('');
       addLog('Tracking stopped. ' + pingCount + ' pings sent this session.', 'warn');
     }

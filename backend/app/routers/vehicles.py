@@ -49,11 +49,20 @@ def create_vehicle(vehicle: VehicleCreate, db: Session = Depends(get_db), curren
     if existing_token:
         raise HTTPException(status_code=400, detail="Device token already assigned to another vehicle")
         
+    driver_id = vehicle.driver_id
+    if vehicle.driver_name:
+        db_driver = Driver(name=vehicle.driver_name)
+        db.add(db_driver)
+        db.commit()
+        db.refresh(db_driver)
+        driver_id = db_driver.id
+
     db_vehicle = Vehicle(
         reg_number=vehicle.reg_number,
         model=vehicle.model,
-        driver_id=vehicle.driver_id,
-        device_token=vehicle.device_token
+        driver_id=driver_id,
+        device_token=vehicle.device_token,
+        speed_limit_kmph=vehicle.speed_limit_kmph
     )
     db.add(db_vehicle)
     db.commit()
@@ -63,6 +72,50 @@ def create_vehicle(vehicle: VehicleCreate, db: Session = Depends(get_db), curren
 @router.get("/vehicles", response_model=List[VehicleResponse])
 def get_vehicles(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return db.query(Vehicle).all()
+
+@router.put("/vehicles/{id}", response_model=VehicleResponse)
+def update_vehicle(id: int, vehicle: VehicleCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    db_vehicle = db.query(Vehicle).filter(Vehicle.id == id).first()
+    if not db_vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+        
+    # Check if reg_number already exists on another vehicle
+    if vehicle.reg_number != db_vehicle.reg_number:
+        existing = db.query(Vehicle).filter(Vehicle.reg_number == vehicle.reg_number).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Vehicle with this registration number already exists")
+            
+    # Check if device_token already exists on another vehicle
+    if vehicle.device_token != db_vehicle.device_token:
+        existing_token = db.query(Vehicle).filter(Vehicle.device_token == vehicle.device_token).first()
+        if existing_token:
+            raise HTTPException(status_code=400, detail="Device token already assigned to another vehicle")
+            
+    # Handle driver name updates
+    if vehicle.driver_name:
+        if db_vehicle.driver:
+            db_vehicle.driver.name = vehicle.driver_name
+        else:
+            db_driver = Driver(name=vehicle.driver_name)
+            db.add(db_driver)
+            db.commit()
+            db.refresh(db_driver)
+            db_vehicle.driver_id = db_driver.id
+    else:
+        # Clear driver if it was set
+        if db_vehicle.driver:
+            old_driver = db_vehicle.driver
+            db_vehicle.driver_id = None
+            db.delete(old_driver)
+            
+    db_vehicle.reg_number = vehicle.reg_number
+    db_vehicle.model = vehicle.model
+    db_vehicle.device_token = vehicle.device_token
+    db_vehicle.speed_limit_kmph = vehicle.speed_limit_kmph
+    
+    db.commit()
+    db.refresh(db_vehicle)
+    return db_vehicle
 
 @router.get("/vehicles/{id}/live", response_model=Optional[LocationLogResponse])
 def get_vehicle_live_location(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
@@ -84,6 +137,9 @@ def delete_vehicle(id: int, db: Session = Depends(get_db), current_user=Depends(
     vehicle = db.query(Vehicle).filter(Vehicle.id == id).first()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
+    driver = vehicle.driver
     db.delete(vehicle)
+    if driver:
+        db.delete(driver)
     db.commit()
     return {"message": "Vehicle deleted successfully"}
