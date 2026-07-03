@@ -24,23 +24,30 @@ ChartJS.register(
 );
 
 export default function SpeedChart({ routePoints = [] }) {
+  if (!routePoints || routePoints.length === 0) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: '#64748b',
+        fontSize: '13px',
+        textAlign: 'center',
+        padding: '20px'
+      }}>
+        No speed data available. Select a vehicle with trip history or run simulator to see speed graph.
+      </div>
+    );
+  }
 
-  // If no data, render an empty chart state to maintain UI structure
-  const safeRoutePoints = routePoints && routePoints.length > 0 ? routePoints : [];
+  // Format labels and speed coordinates
+  const labels = routePoints.map(p => {
+    const d = new Date(p.recorded_at);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  });
 
-  const labels = safeRoutePoints.length > 0 
-    ? safeRoutePoints.map(p => {
-        if (!p.recorded_at) return '';
-        const dateStr = String(p.recorded_at);
-        const utcDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
-        const d = new Date(utcDateStr);
-        return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      })
-    : ['No Data'];
-
-  const speedData = safeRoutePoints.length > 0 
-    ? safeRoutePoints.map(p => p.speed_kmph || 0)
-    : [0];
+  const speedData = routePoints.map(p => p.speed_kmph || 0);
 
   const data = {
     labels,
@@ -58,9 +65,8 @@ export default function SpeedChart({ routePoints = [] }) {
         pointHoverBackgroundColor: '#6366f1',
         pointHoverBorderColor: '#ffffff',
         pointHoverBorderWidth: 2,
-        pointRadius: 2, // Always show a dot for every ping
-        pointHitRadius: 10,
-        lineTension: 0.3, // Restore beautiful bezier curves
+        pointRadius: routePoints.length > 50 ? 0 : 2, // hide dots if too dense
+        lineTension: 0.3,
       },
     ],
   };
@@ -94,9 +100,7 @@ export default function SpeedChart({ routePoints = [] }) {
         ticks: {
           color: '#64748b',
           font: { size: 10 },
-          autoSkip: false,
-          maxRotation: 45,
-          minRotation: 45
+          maxTicksLimit: 8, // Avoid label crowding
         }
       },
       y: {
