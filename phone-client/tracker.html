@@ -162,10 +162,8 @@
         <label>Device Token</label>
         <input type="text" id="deviceToken" value="tracker-device-123" placeholder="tracker-device-123" />
       </div>
-      <div class="form-row">
-        <label>Backend URL</label>
-        <input type="text" id="apiUrl" value="http://localhost:8000" placeholder="http://your-server.com" />
-      </div>
+      <input type="hidden" id="apiUrl" value="" />
+      <input type="checkbox" id="mockLocation" style="display: none;" />
       <div class="form-row">
         <label>Send Interval: <b id="sliderVal">5</b> seconds</label>
         <input type="range" id="intervalSlider" min="3" max="30" value="5" step="1" oninput="updateInterval(this.value)" />
@@ -176,10 +174,6 @@
           <option value="high">High Accuracy (GPS chip - better, uses more battery)</option>
           <option value="low">Low Accuracy (Network/WiFi - saves battery)</option>
         </select>
-      </div>
-      <div class="form-row" style="flex-direction: row; align-items: center; justify-content: space-between; margin-top: 10px;">
-        <label for="mockLocation" style="margin-bottom: 0; cursor: pointer; color: var(--cyan);">MOCK POSITION GENERATOR (bypass real GPS)</label>
-        <input type="checkbox" id="mockLocation" style="width: 18px; height: 18px; accent-color: var(--cyan); margin: 0; cursor: pointer;" checked />
       </div>
     </div>
 
