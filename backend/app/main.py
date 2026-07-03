@@ -53,7 +53,8 @@ def seed_database():
         # Check if drivers exist
         if db.query(Driver).count() == 0:
             logger.info("Seeding default driver...")
-            driver = Driver(name="John Doe", phone="+1234567890", license_no="DL-123456789")
+            admin = db.query(User).filter(User.username == "admin").first()
+            driver = Driver(name="John Doe", phone="+1234567890", license_no="DL-123456789", owner_id=admin.id if admin else 1)
             db.add(driver)
             db.commit()
 
@@ -61,11 +62,13 @@ def seed_database():
         if db.query(Vehicle).count() == 0:
             logger.info("Seeding default vehicle...")
             driver = db.query(Driver).first()
+            admin = db.query(User).filter(User.username == "admin").first()
             vehicle = Vehicle(
                 reg_number="KA-01-MH-5678",
                 model="Tesla Model 3",
                 driver_id=driver.id if driver else None,
-                device_token="tracker-device-123"
+                device_token="tracker-device-123",
+                owner_id=admin.id if admin else 1
             )
             db.add(vehicle)
             db.commit()
@@ -124,13 +127,28 @@ def health_check():
 # --- WEBSOCKET ENDPOINT ---
 
 @app.websocket("/ws/live")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: str = None, db: SessionLocal = Depends(SessionLocal)):
     """
     WebSocket endpoint for pushing real-time location logs 
     and geofence alerts directly to frontend dashboard clients.
     """
-    await manager.connect(websocket)
-    logger.info(f"WebSocket client connected. Active connections: {len(manager.active_connections)}")
+    if not token:
+        await websocket.close(code=1008)
+        return
+        
+    from .routers.auth import verify_token
+    payload = verify_token(token)
+    if not payload:
+        await websocket.close(code=1008)
+        return
+        
+    user = db.query(User).filter(User.username == payload.get("username")).first()
+    if not user:
+        await websocket.close(code=1008)
+        return
+
+    await manager.connect(websocket, user.id)
+    logger.info(f"WebSocket client connected for user {user.username}. Active users connected: {len(manager.active_connections)}")
     try:
         while True:
             # We keep connection open and listen for any heartbeat/messages from client
@@ -139,8 +157,8 @@ async def websocket_endpoint(websocket: WebSocket):
             # Respond to client ping to keep connection alive
             await websocket.send_json({"event_type": "pong", "message": "heartbeat ok"})
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        logger.info(f"WebSocket client disconnected. Active connections: {len(manager.active_connections)}")
+        manager.disconnect(websocket, user.id)
+        logger.info(f"WebSocket client disconnected for user {user.username}.")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
-        manager.disconnect(websocket)
+        manager.disconnect(websocket, user.id)

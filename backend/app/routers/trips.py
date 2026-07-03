@@ -18,6 +18,9 @@ def get_vehicle_trips(vehicle_id: int, db: Session = Depends(get_db), current_us
     """
     Returns list of all trips (completed and active) for a vehicle.
     """
+    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.owner_id == current_user.id).first()
+    if not vehicle:
+        return []
     return db.query(Trip).filter(Trip.vehicle_id == vehicle_id).order_by(Trip.start_time.desc()).all()
 
 @router.get("/trips/{id}", response_model=TripDetailResponse)
@@ -25,7 +28,7 @@ def get_trip_details(id: int, db: Session = Depends(get_db), current_user=Depend
     """
     Returns detailed trip metrics along with the GPS path logs recorded during that trip.
     """
-    trip = db.query(Trip).filter(Trip.id == id).first()
+    trip = db.query(Trip).join(Vehicle).filter(Trip.id == id, Vehicle.owner_id == current_user.id).first()
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
         
@@ -60,12 +63,11 @@ def get_trip_details(id: int, db: Session = Depends(get_db), current_user=Depend
     }
 
 @router.get("/trips/{id}/report.pdf")
-def get_trip_report_pdf(id: int, db: Session = Depends(get_db)):
+def get_trip_report_pdf(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """
     Generates and streams a professional PDF report for a vehicle trip.
-    Accessible without JWT so it can easily be shared, printed, or downloaded via link.
     """
-    trip = db.query(Trip).filter(Trip.id == id).first()
+    trip = db.query(Trip).join(Vehicle).filter(Trip.id == id, Vehicle.owner_id == current_user.id).first()
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
         

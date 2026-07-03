@@ -15,7 +15,7 @@ router = APIRouter(
 
 @router.post("/drivers", response_model=DriverResponse, status_code=status.HTTP_201_CREATED)
 def create_driver(driver: DriverCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    db_driver = Driver(name=driver.name, phone=driver.phone, license_no=driver.license_no)
+    db_driver = Driver(name=driver.name, phone=driver.phone, license_no=driver.license_no, owner_id=current_user.id)
     db.add(db_driver)
     db.commit()
     db.refresh(db_driver)
@@ -23,11 +23,11 @@ def create_driver(driver: DriverCreate, db: Session = Depends(get_db), current_u
 
 @router.get("/drivers", response_model=List[DriverResponse])
 def get_drivers(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    return db.query(Driver).all()
+    return db.query(Driver).filter(Driver.owner_id == current_user.id).all()
 
 @router.delete("/drivers/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_driver(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    driver = db.query(Driver).filter(Driver.id == id).first()
+    driver = db.query(Driver).filter(Driver.id == id, Driver.owner_id == current_user.id).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
     db.delete(driver)
@@ -51,7 +51,7 @@ def create_vehicle(vehicle: VehicleCreate, db: Session = Depends(get_db), curren
         
     driver_id = vehicle.driver_id
     if vehicle.driver_name:
-        db_driver = Driver(name=vehicle.driver_name)
+        db_driver = Driver(name=vehicle.driver_name, owner_id=current_user.id)
         db.add(db_driver)
         db.commit()
         db.refresh(db_driver)
@@ -61,6 +61,7 @@ def create_vehicle(vehicle: VehicleCreate, db: Session = Depends(get_db), curren
         reg_number=vehicle.reg_number,
         model=vehicle.model,
         driver_id=driver_id,
+        owner_id=current_user.id,
         device_token=vehicle.device_token,
         speed_limit_kmph=vehicle.speed_limit_kmph
     )
@@ -71,7 +72,7 @@ def create_vehicle(vehicle: VehicleCreate, db: Session = Depends(get_db), curren
 
 @router.get("/vehicles", response_model=List[VehicleResponse])
 def get_vehicles(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    vehicles = db.query(Vehicle).all()
+    vehicles = db.query(Vehicle).filter(Vehicle.owner_id == current_user.id).all()
     for v in vehicles:
         last_log = db.query(LocationLog).filter(LocationLog.vehicle_id == v.id).order_by(LocationLog.recorded_at.desc()).first()
         if last_log:
@@ -85,7 +86,7 @@ def get_vehicles(db: Session = Depends(get_db), current_user=Depends(get_current
 
 @router.put("/vehicles/{id}", response_model=VehicleResponse)
 def update_vehicle(id: int, vehicle: VehicleCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    db_vehicle = db.query(Vehicle).filter(Vehicle.id == id).first()
+    db_vehicle = db.query(Vehicle).filter(Vehicle.id == id, Vehicle.owner_id == current_user.id).first()
     if not db_vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
         
@@ -105,8 +106,8 @@ def update_vehicle(id: int, vehicle: VehicleCreate, db: Session = Depends(get_db
     if vehicle.driver_name:
         if db_vehicle.driver:
             db_vehicle.driver.name = vehicle.driver_name
-        else:
-            db_driver = Driver(name=vehicle.driver_name)
+        if vehicle.driver_name:
+            db_driver = Driver(name=vehicle.driver_name, owner_id=current_user.id)
             db.add(db_driver)
             db.commit()
             db.refresh(db_driver)
@@ -144,7 +145,7 @@ def get_vehicle_live_location(id: int, db: Session = Depends(get_db), current_us
 
 @router.delete("/vehicles/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_vehicle(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    vehicle = db.query(Vehicle).filter(Vehicle.id == id).first()
+    vehicle = db.query(Vehicle).filter(Vehicle.id == id, Vehicle.owner_id == current_user.id).first()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     driver = vehicle.driver

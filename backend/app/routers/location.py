@@ -148,7 +148,7 @@ async def post_location(payload: LocationLogCreate, db: Session = Depends(get_db
         "overspeed_event": overspeed_event
     }
     
-    await manager.broadcast(ws_payload)
+    await manager.send_to_user(vehicle.owner_id, ws_payload)
     
     return db_log
 

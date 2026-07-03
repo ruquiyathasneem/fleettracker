@@ -258,7 +258,7 @@ export default function App() {
     };
 
     const connectWebSocket = () => {
-      const ws = new WebSocket(`${WS_BASE}/ws/live`);
+      const ws = new WebSocket(`${WS_BASE}/ws/live?token=${token}`);
       wsRef.current = ws;
 
       ws.onopen = () => {

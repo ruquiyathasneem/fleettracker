@@ -10,8 +10,10 @@ class Driver(Base):
     name = Column(String(100), nullable=False)
     phone = Column(String(20))
     license_no = Column(String(50))
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=func.now())
 
+    owner = relationship("User")
     vehicles = relationship("Vehicle", back_populates="driver")
 
 
@@ -22,10 +24,12 @@ class Vehicle(Base):
     reg_number = Column(String(20), unique=True, nullable=False, index=True)
     model = Column(String(100))
     driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     device_token = Column(String(64), unique=True, nullable=False, index=True)
     speed_limit_kmph = Column(Float, default=80.0, nullable=False)
     created_at = Column(DateTime, default=func.now())
 
+    owner = relationship("User")
     driver = relationship("Driver", back_populates="vehicles")
     location_logs = relationship("LocationLog", back_populates="vehicle", cascade="all, delete-orphan")
     trips = relationship("Trip", back_populates="vehicle", cascade="all, delete-orphan")
