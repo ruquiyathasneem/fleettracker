@@ -429,25 +429,55 @@ export default function App() {
   // Entity Creation & Management Handlers
   const handleCreateVehicle = async (e) => {
     e.preventDefault();
+    
+    // 1. Create a temporary vehicle for optimistic UI update
+    const tempId = Date.now();
+    const tempVehicle = {
+      id: tempId,
+      reg_number: newVehicle.reg_number,
+      model: newVehicle.model,
+      driver_name: newVehicle.driver_name || null,
+      device_token: newVehicle.device_token,
+      speed_limit_kmph: parseFloat(newVehicle.speed_limit_kmph) || 80.0,
+      latitude: null,
+      longitude: null,
+      speed_kmph: 0,
+      heading: 0
+    };
+
+    // 2. Apply optimistic update immediately
+    setVehicles(prev => [...prev, tempVehicle]);
+    setShowVehicleModal(false);
+    
+    // Store old input state in case we need to revert
+    const backupInputState = { ...newVehicle };
+    setNewVehicle({ reg_number: '', model: '', driver_name: '', device_token: '', speed_limit_kmph: 80.0 });
+
     try {
       const payload = {
-        reg_number: newVehicle.reg_number,
-        model: newVehicle.model,
-        device_token: newVehicle.device_token,
-        driver_name: newVehicle.driver_name || null,
-        speed_limit_kmph: parseFloat(newVehicle.speed_limit_kmph) || 80.0
+        reg_number: backupInputState.reg_number,
+        model: backupInputState.model,
+        device_token: backupInputState.device_token,
+        driver_name: backupInputState.driver_name || null,
+        speed_limit_kmph: parseFloat(backupInputState.speed_limit_kmph) || 80.0
       };
+      
       const res = await apiFetch('/api/vehicles', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
+      
       if (res.ok) {
-        const v = await res.json();
-        setVehicles(prev => [...prev, { ...v, latitude: null, longitude: null, speed_kmph: 0, heading: 0 }]);
-        setShowVehicleModal(false);
-        setNewVehicle({ reg_number: '', model: '', driver_name: '', device_token: '', speed_limit_kmph: 80.0 });
+        const realVehicle = await res.json();
+        // Replace temp vehicle with real vehicle from backend
+        setVehicles(prev => prev.map(v => v.id === tempId ? { ...realVehicle, latitude: null, longitude: null, speed_kmph: 0, heading: 0 } : v));
         addToast('Vehicle registered successfully', 'success');
       } else {
+        // Revert optimistic update
+        setVehicles(prev => prev.filter(v => v.id !== tempId));
+        setNewVehicle(backupInputState);
+        setShowVehicleModal(true);
+        
         let errMessage = 'Error registering vehicle';
         try {
           const err = await res.json();
@@ -458,6 +488,11 @@ export default function App() {
         alert(errMessage);
       }
     } catch (e) {
+      // Revert optimistic update
+      setVehicles(prev => prev.filter(v => v.id !== tempId));
+      setNewVehicle(backupInputState);
+      setShowVehicleModal(true);
+      
       alert(`Network or unexpected error: ${e.message}`);
       console.error(e);
     }
@@ -496,22 +531,44 @@ export default function App() {
     if (!window.confirm("Are you sure you want to delete this vehicle and all its location logs/trips/geofences?")) {
       return;
     }
+    
+    // 1. Store vehicle to revert if needed
+    const vehicleToDelete = vehicles.find(v => v.id === vehicleId);
+    if (!vehicleToDelete) return;
+    
+    // 2. Apply optimistic update immediately
+    setVehicles(prev => prev.filter(v => v.id !== vehicleId));
+    
+    let previousSelectedVehicle = null;
+    if (selectedVehicleId === vehicleId) {
+      previousSelectedVehicle = vehicleId;
+      setSelectedVehicleId(null);
+      setSelectedTripId(null);
+    }
+    
     try {
       const res = await apiFetch(`/api/vehicles/${vehicleId}`, {
         method: 'DELETE'
       });
+      
       if (res.ok) {
-        setVehicles(prev => prev.filter(v => v.id !== vehicleId));
-        if (selectedVehicleId === vehicleId) {
-          setSelectedVehicleId(null);
-          setSelectedTripId(null);
-        }
         addToast('Vehicle deleted successfully', 'success');
       } else {
+        // Revert optimistic update
+        setVehicles(prev => [...prev, vehicleToDelete]);
+        if (previousSelectedVehicle) {
+          setSelectedVehicleId(previousSelectedVehicle);
+        }
+        
         const err = await res.json();
         alert(err.detail || 'Error deleting vehicle');
       }
     } catch (e) {
+      // Revert optimistic update
+      setVehicles(prev => [...prev, vehicleToDelete]);
+      if (previousSelectedVehicle) {
+        setSelectedVehicleId(previousSelectedVehicle);
+      }
       console.error(e);
     }
   };
