@@ -100,7 +100,9 @@ export default function SpeedChart({ routePoints = [] }) {
         ticks: {
           color: '#64748b',
           font: { size: 10 },
-          maxTicksLimit: 8, // Avoid label crowding
+          autoSkip: false,
+          maxRotation: 45,
+          minRotation: 45
         }
       },
       y: {
