@@ -82,7 +82,7 @@ export default function SpeedChart({ routePoints = [] }) {
         pointHoverBackgroundColor: '#ffffff',
         pointHoverBorderColor: '#6366f1',
         pointHoverBorderWidth: 3,
-        pointRadius: 0, // Hide static dots for a clean, continuous line
+        pointRadius: 3, // Restore static dots so users can see each individual ping being plotted
         pointHitRadius: 15, // Large invisible hit area for easy hovering
         lineTension: 0.4, // Super smooth bezier curves
       },
