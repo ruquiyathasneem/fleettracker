@@ -61,10 +61,10 @@ export default function MapView({
     const map = mapRef.current;
     if (!map) return;
 
-    // Remove markers for vehicles no longer present
-    const vehicleIds = vehicles.map(v => v.id.toString());
+    // Remove markers for vehicles no longer present or not selected
+    const selectedIds = selectedVehicleId ? [selectedVehicleId.toString()] : vehicles.map(v => v.id.toString());
     Object.keys(markersRef.current).forEach(id => {
-      if (!vehicleIds.includes(id)) {
+      if (!selectedIds.includes(id)) {
         map.removeLayer(markersRef.current[id]);
         delete markersRef.current[id];
       }
@@ -72,6 +72,9 @@ export default function MapView({
 
     // Draw or update active vehicles
     vehicles.forEach(vehicle => {
+      // Only show the selected vehicle if one is selected
+      if (selectedVehicleId && vehicle.id !== selectedVehicleId) return;
+      
       if (!vehicle.latitude || !vehicle.longitude) return;
 
       const position = [vehicle.latitude, vehicle.longitude];
