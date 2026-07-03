@@ -6,6 +6,7 @@ from .ws_manager import manager
 from .models import User, Driver, Vehicle, Geofence
 import logging
 import os
+from sqlalchemy import text
 
 # Initialize logger
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +44,22 @@ app.add_middleware(
 def seed_database():
     db = SessionLocal()
     try:
+        # Run migrations for multi-tenant setup (add owner_id if missing)
+        try:
+            db.execute(text('ALTER TABLE drivers ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
+            db.execute(text('UPDATE drivers SET owner_id = 1 WHERE owner_id IS NULL;'))
+            db.execute(text('ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
+            db.execute(text('UPDATE vehicles SET owner_id = 1 WHERE owner_id IS NULL;'))
+            db.execute(text('ALTER TABLE geofences ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
+            db.execute(text('UPDATE geofences SET owner_id = 1 WHERE owner_id IS NULL;'))
+            db.execute(text('ALTER TABLE trips ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
+            db.execute(text('UPDATE trips SET owner_id = 1 WHERE owner_id IS NULL;'))
+            db.commit()
+            logger.info("Successfully applied multi-tenant schema migrations.")
+        except Exception as e:
+            logger.error(f"Migration error (safe to ignore if using SQLite): {e}")
+            db.rollback()
+
         # Check if users exist
         if db.query(User).count() == 0:
             logger.info("Seeding default user...")
