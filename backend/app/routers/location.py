@@ -152,3 +152,34 @@ async def post_location(payload: LocationLogCreate, db: Session = Depends(get_db
     
     return db_log
 
+@router.get("/gpslogger", status_code=status.HTTP_200_OK)
+async def gpslogger_ingest(
+    token: str, 
+    lat: float, 
+    lon: float, 
+    speed: float = 0.0, 
+    dir: float = 0.0, 
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint for third-party background trackers like GPSLogger.
+    GPSLogger Custom URL format:
+    https://fleettracker-backend.onrender.com/api/location/gpslogger?token=YOUR_TOKEN&lat=%LAT&lon=%LON&speed=%SPD&dir=%DIR
+    """
+    # GPSLogger %SPD is in m/s, convert to km/h
+    speed_kmph = float(speed) * 3.6 if speed else 0.0
+
+    payload = LocationLogCreate(
+        device_token=token,
+        latitude=lat,
+        longitude=lon,
+        speed_kmph=speed_kmph,
+        heading=dir
+    )
+    
+    # Reuse the core POST logic for ingestion
+    try:
+        await post_location(payload, db)
+        return {"status": "success"}
+    except HTTPException as e:
+        return {"status": "error", "detail": e.detail}
