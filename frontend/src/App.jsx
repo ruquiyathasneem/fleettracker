@@ -76,6 +76,7 @@ export default function App() {
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showEditVehicleModal, setShowEditVehicleModal] = useState(false);
   const [showGeofenceModal, setShowGeofenceModal] = useState(false);
+  const [showGeofenceListModal, setShowGeofenceListModal] = useState(false);
 
   // New Entity Form Fields
   const [newVehicle, setNewVehicle] = useState({ reg_number: '', model: '', driver_name: '', device_token: '', speed_limit_kmph: 80.0 });
@@ -959,41 +960,17 @@ export default function App() {
 
           {/* Right side panel for Geofences and Alerts */}
           <div className="alerts-container">
-            
-            {/* Active Geofences List */}
-            <div style={{ flex: 'none', marginBottom: '16px' }}>
-              <div className="section-title">
-                Active Boundaries
-              </div>
-              <div style={{ maxHeight: '140px', overflowY: 'auto' }}>
-                {geofences.length === 0 ? (
-                  <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', margin: '10px 0' }}>
-                    No active boundaries.
-                  </div>
-                ) : (
-                  geofences.map(gf => (
-                    <div key={gf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', borderBottom: '1px solid var(--border-color)', fontSize: '13px' }}>
-                      <div>
-                        <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{gf.name}</div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>Radius: {gf.radius_m}m</div>
-                      </div>
-                      <button 
-                        onClick={() => handleDeleteGeofence(gf.id)}
-                        style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.2)', color: 'var(--accent-rose)', cursor: 'pointer', padding: '6px', borderRadius: '4px' }}
-                        title="Delete Boundary"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
             {/* Recent Geofence Alerts feed */}
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               <div className="section-title">
-                Security Logs (Geofencing)
+                <span>Security Logs (Geofencing)</span>
+                <button 
+                  onClick={() => setShowGeofenceListModal(true)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  title="View Active Boundaries"
+                >
+                  <MapPin size={16} />
+                </button>
               </div>
               <div style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
               {recentEvents.length === 0 ? (
@@ -1233,6 +1210,43 @@ export default function App() {
                 <button type="submit" className="btn-primary" style={{ width: 'auto' }}>Create Boundary</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* 4. Active Boundaries List Modal */}
+      {showGeofenceListModal && (
+        <div className="modal-overlay" onClick={() => setShowGeofenceListModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '400px' }}>
+            <div className="modal-header">
+              <h3>Active Boundaries</h3>
+              <button className="close-btn" onClick={() => setShowGeofenceListModal(false)}>×</button>
+            </div>
+            <div style={{ padding: '20px', maxHeight: '400px', overflowY: 'auto' }}>
+              {geofences.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', margin: '20px 0' }}>
+                  No active boundaries for this vehicle.
+                </div>
+              ) : (
+                geofences.map(gf => (
+                  <div key={gf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid var(--border-color)', fontSize: '14px' }}>
+                    <div>
+                      <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{gf.name}</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>Radius: {gf.radius_m} meters</div>
+                    </div>
+                    <button 
+                      onClick={() => handleDeleteGeofence(gf.id)}
+                      style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', color: 'var(--accent-rose)', cursor: 'pointer', padding: '8px', borderRadius: '6px', transition: 'all 0.2s' }}
+                      title="Delete Boundary"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn-secondary" onClick={() => setShowGeofenceListModal(false)} style={{ width: '100%' }}>Close</button>
+            </div>
           </div>
         </div>
       )}
