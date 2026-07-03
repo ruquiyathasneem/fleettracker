@@ -11,15 +11,21 @@ const WS_BASE  = import.meta.env.VITE_API_BASE
   ? import.meta.env.VITE_API_BASE.replace('https://', 'wss://').replace('http://', 'ws://')
   : 'ws://localhost:8000';
 
+const parseUtcDate = (dateStr) => {
+  if (!dateStr) return null;
+  // Ensure the date string is parsed as UTC if the backend omitted the 'Z' timezone indicator
+  return new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+};
+
 const getRelativeTime = (isoString) => {
   if (!isoString) return 'Offline';
-  const diffMs = new Date() - new Date(isoString);
+  const diffMs = new Date() - parseUtcDate(isoString);
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return 'Online';
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
-  return new Date(isoString).toLocaleDateString();
+  return parseUtcDate(isoString).toLocaleDateString();
 };
 
 export default function App() {
@@ -567,7 +573,7 @@ export default function App() {
   // Calculate active vehicle status
   const getVehicleStatus = (v) => {
     if (!v) return 'offline';
-    const lastActive = v.recorded_at ? new Date(v.recorded_at) : null;
+    const lastActive = parseUtcDate(v.recorded_at);
     const isRecent = lastActive && (new Date() - lastActive) < 60000;
     const speed = v.speed_kmph || 0;
     return isRecent ? (speed > 2.0 ? 'moving' : 'idle') : 'offline';
@@ -612,7 +618,7 @@ export default function App() {
             Active Fleet ({vehicles.length})
           </div>
           {vehicles.map(v => {
-            const lastActive = v.recorded_at ? new Date(v.recorded_at) : null;
+            const lastActive = parseUtcDate(v.recorded_at);
             const isRecent = lastActive && (new Date() - lastActive) < 60000;
             const speed = v.speed_kmph || 0;
             const status = isRecent ? (speed > 2.0 ? 'moving' : 'idle') : 'offline';
@@ -858,11 +864,12 @@ export default function App() {
               Speed Curve
               {activeTripPoints.length > 0 && (() => {
                 const speeds = activeTripPoints.map(p => p.speed_kmph || 0);
+                const currentSpd = speeds[speeds.length - 1]; // Latest point
                 const maxSpd = Math.max(...speeds);
                 const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
                 return (
                   <span style={{ fontSize: '11px', textTransform: 'none', fontWeight: 'normal' }}>
-                    Max: {maxSpd.toFixed(1)} km/h | Avg: {avgSpd.toFixed(1)} km/h
+                    Now: {currentSpd.toFixed(1)} km/h | Max: {maxSpd.toFixed(1)} km/h | Avg: {avgSpd.toFixed(1)} km/h
                   </span>
                 );
               })()}
