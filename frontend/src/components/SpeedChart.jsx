@@ -41,10 +41,18 @@ export default function SpeedChart({ routePoints = [] }) {
     );
   }
 
-  // Format labels and speed coordinates
+  // Format labels and speed coordinates to Indian Standard Time
   const labels = routePoints.map(p => {
-    const d = new Date(p.recorded_at);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    // Append 'Z' to ensure it is parsed as UTC if the backend didn't include it
+    const dateStr = p.recorded_at.endsWith('Z') ? p.recorded_at : `${p.recorded_at}Z`;
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString('en-IN', { 
+      timeZone: 'Asia/Kolkata', 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: true
+    });
   });
 
   const speedData = routePoints.map(p => p.speed_kmph || 0);
