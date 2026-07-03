@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#06b6d4" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Fleet Tracker" />
+  <meta name="apple-mobile-web-app-title" content="FleetGPS" />
+  <meta name="description" content="Real-time GPS tracker for fleet management" />
+  <link rel="manifest" href="/tracker-client/manifest.json" />
+  <link rel="apple-touch-icon" href="/tracker-client/icon-192.png" />
   <title>Fleet GPS Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -95,12 +98,17 @@
 <body>
   <header class="header">
     <div class="logo">
-      <div class="logo-icon">&#x1F4E1;</div>
+      <div class="logo-icon">📡</div>
       <div class="logo-text">Fleet<span>GPS</span></div>
     </div>
-    <div class="conn-badge" id="connBadge">
-      <div class="conn-dot"></div>
-      <span id="connText">Offline</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button id="installBtn" onclick="promptInstall()" style="display:none;align-items:center;gap:6px;background:rgba(6,182,212,0.15);border:1px solid rgba(6,182,212,0.4);color:var(--cyan);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">
+        ⬇️ Install App
+      </button>
+      <div class="conn-badge" id="connBadge">
+        <div class="conn-dot"></div>
+        <span id="connText">Offline</span>
+      </div>
     </div>
   </header>
 
@@ -547,6 +555,36 @@
     }
 
     updateInterval(5);
+
+    // Register Service Worker for PWA background capabilities
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/tracker-client/sw.js').then(reg => {
+        console.log('SW registered:', reg.scope);
+        // Listen for flush messages from service worker
+        navigator.serviceWorker.addEventListener('message', e => {
+          if (e.data && e.data.type === 'FLUSH_QUEUE') flushOfflineQueue();
+        });
+      }).catch(err => console.warn('SW registration failed:', err));
+    }
+
+    // PWA install prompt — show install button when browser fires beforeinstallprompt
+    var deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      var btn = document.getElementById('installBtn');
+      if (btn) btn.style.display = 'flex';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      var btn = document.getElementById('installBtn');
+      if (btn) btn.style.display = 'none';
+      deferredPrompt = null;
+    });
+
+    function promptInstall() {
+      if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; }
+    }
   </script>
 </body>
 </html>
