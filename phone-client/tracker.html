@@ -436,12 +436,6 @@
         address: lastAddress || null
       };
 
-      // If we have items in the queue, buffer this one as well and try to flush everything
-      if (offlineQueue.length > 0) {
-        queueLocation(payload);
-        flushOfflineQueue();
-        return;
-      }
 
       try {
         var fetchCtrl = new AbortController();
@@ -496,6 +490,9 @@
       document.getElementById('apiUrl').disabled = true;
       document.getElementById('accuracyMode').disabled = true;
       document.getElementById('mockLocation').disabled = true;
+      // Clear any stale offline queue from previous sessions so pings go directly to server
+      offlineQueue = [];
+      localStorage.removeItem('tracker_offline_queue');
       addLog('Tracking started &rarr; token: ' + token, 'success');
       addLog('Endpoint: ' + apiUrl + '/api/location', 'info');
       
