@@ -56,17 +56,27 @@ export default function SpeedChart({ routePoints = [] }) {
         label: 'Speed (km/h)',
         data: speedData,
         fill: true,
-        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-        borderColor: '#6366f1',
-        borderWidth: 2,
-        pointBackgroundColor: '#06b6d4',
-        pointBorderColor: '#ffffff',
-        pointHoverRadius: 5,
-        pointHoverBackgroundColor: '#6366f1',
-        pointHoverBorderColor: '#ffffff',
-        pointHoverBorderWidth: 2,
-        pointRadius: 2, // Always show dots even if dense
-        lineTension: 0.3,
+        backgroundColor: (context) => {
+          const chart = context.chart;
+          const { ctx, chartArea } = chart;
+          if (!chartArea) return 'rgba(99, 102, 241, 0.1)';
+          const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          gradient.addColorStop(0, 'rgba(99, 102, 241, 0.5)');
+          gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
+          return gradient;
+        },
+        borderColor: '#818cf8',
+        borderWidth: 3,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#818cf8',
+        pointBorderWidth: 2,
+        pointHoverRadius: 6,
+        pointHoverBackgroundColor: '#ffffff',
+        pointHoverBorderColor: '#6366f1',
+        pointHoverBorderWidth: 3,
+        pointRadius: 0, // Hide static dots for a clean, continuous line
+        pointHitRadius: 15, // Large invisible hit area for easy hovering
+        lineTension: 0.4, // Super smooth bezier curves
       },
     ],
   };
@@ -98,11 +108,11 @@ export default function SpeedChart({ routePoints = [] }) {
           color: 'rgba(148, 163, 184, 0.05)',
         },
         ticks: {
-          color: '#64748b',
-          font: { size: 10 },
-          autoSkip: false,
-          maxRotation: 45,
-          minRotation: 45
+          color: '#94a3b8',
+          font: { size: 11, family: 'Inter, sans-serif' },
+          autoSkip: true,
+          maxTicksLimit: 6, // Clean spacing, never cluttered
+          maxRotation: 0, // Keep them flat and readable
         }
       },
       y: {
@@ -111,8 +121,8 @@ export default function SpeedChart({ routePoints = [] }) {
           color: 'rgba(148, 163, 184, 0.05)',
         },
         ticks: {
-          color: '#64748b',
-          font: { size: 10 },
+          color: '#94a3b8',
+          font: { size: 11, family: 'Inter, sans-serif' },
           callback: (value) => `${value} km/h`
         }
       }
