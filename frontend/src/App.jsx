@@ -634,7 +634,6 @@ export default function App() {
                   <span>{v.model || 'Unknown Model'}</span>
                   <span>{status === 'offline' ? getRelativeTime(v.recorded_at) : `${speed.toFixed(0)} km/h`}</span>
                 </div>
-                </div>
               </div>
             );
           })}
