@@ -6,6 +6,31 @@ import {
 import MapView from './components/MapView';
 import SpeedChart from './components/SpeedChart';
 
+// Error boundary to prevent entire UI from collapsing on random errors
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', color: '#f87171', background: '#0f172a', height: '100vh', width: '100vw' }}>
+          <h2>UI Crash Detected</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '12px', background: '#1e293b', padding: '10px' }}>
+            {this.state.error?.toString()}
+          </pre>
+          <button onClick={() => window.location.reload()} style={{ padding: '10px', marginTop: '10px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px' }}>Reload Dashboard</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 const WS_BASE  = import.meta.env.VITE_API_BASE
   ? import.meta.env.VITE_API_BASE.replace('https://', 'wss://').replace('http://', 'ws://')
@@ -582,7 +607,8 @@ export default function App() {
   const activeVehicleStatus = getVehicleStatus(activeVehicle);
 
   return (
-    <div className="app-layout">
+    <ErrorBoundary>
+    <div className="app-layout" style={{ minWidth: 0, minHeight: 0 }}>
       {/* Toast Notification Box */}
       <div className="toast-container">
         {toasts.map(t => (
@@ -871,7 +897,7 @@ export default function App() {
                 const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
                 return (
                   <span style={{ fontSize: '11px', textTransform: 'none', fontWeight: 'normal' }}>
-                    Now: {currentSpd.toFixed(1)} km/h | Max: {maxSpd.toFixed(1)} km/h | Avg: {avgSpd.toFixed(1)} km/h
+                    Now: {currentSpd ? currentSpd.toFixed(1) : '0.0'} km/h | Max: {maxSpd ? maxSpd.toFixed(1) : '0.0'} km/h | Avg: {avgSpd ? avgSpd.toFixed(1) : '0.0'} km/h
                   </span>
                 );
               })()}
@@ -1126,5 +1152,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 }
