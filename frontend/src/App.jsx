@@ -144,6 +144,11 @@ export default function App() {
         const eRes = await apiFetch('/api/geofences/events/recent');
         const eData = await eRes.json();
         setRecentEvents(eData);
+        
+        // Request desktop notification permission on successful login
+        if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+          Notification.requestPermission();
+        }
       } catch (err) {
         console.error('Failed to load initial metrics', err);
       }
@@ -229,6 +234,28 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
 
+    // Helper to play an audible alert beep
+    const playAlertBeep = () => {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.5);
+        gain.gain.setValueAtTime(1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+      } catch (e) {
+        console.error("Audio API error:", e);
+      }
+    };
+
     const connectWebSocket = () => {
       const ws = new WebSocket(`${WS_BASE}/ws/live`);
       wsRef.current = ws;
@@ -296,7 +323,14 @@ export default function App() {
           if (msg.geofence_events && msg.geofence_events.length > 0) {
             msg.geofence_events.forEach(evt => {
               const action = evt.event_type === 'enter' ? 'entered' : 'exited';
-              addToast(`⚠️ Alert: Vehicle ${loc.reg_number} has ${action} geofence "${evt.geofence_name}"!`, 'warning');
+              const alertMsg = `Vehicle ${loc.reg_number} has ${action} geofence "${evt.geofence_name}"!`;
+              
+              addToast(`⚠️ Alert: ${alertMsg}`, 'warning');
+              playAlertBeep();
+              
+              if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("Fleet Tracker Alert", { body: alertMsg, icon: '/favicon.ico' });
+              }
               
               // Prepend to recent events feed
               setRecentEvents(prev => [
