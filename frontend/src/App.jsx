@@ -574,7 +574,8 @@ export default function App() {
   const getVehicleStatus = (v) => {
     if (!v) return 'offline';
     const lastActive = parseUtcDate(v.recorded_at);
-    const isRecent = lastActive && (new Date() - lastActive) < 60000;
+    // Reduced timeout to 20s for near-instant offline detection when tracker stops
+    const isRecent = lastActive && (new Date() - lastActive) < 20000;
     const speed = v.speed_kmph || 0;
     return isRecent ? (speed > 2.0 ? 'moving' : 'idle') : 'offline';
   };
@@ -619,7 +620,8 @@ export default function App() {
           </div>
           {vehicles.map(v => {
             const lastActive = parseUtcDate(v.recorded_at);
-            const isRecent = lastActive && (new Date() - lastActive) < 60000;
+            // Reduced timeout to 20s
+            const isRecent = lastActive && (new Date() - lastActive) < 20000;
             const speed = v.speed_kmph || 0;
             const status = isRecent ? (speed > 2.0 ? 'moving' : 'idle') : 'offline';
             return (
@@ -633,7 +635,7 @@ export default function App() {
               >
                 <div className="vehicle-card-header">
                   <div className="vehicle-reg">{v.reg_number}</div>
-                  <div className={`status-dot ${status}`}></div>
+                  <div className={`status-dot ${status === 'offline' ? 'offline' : 'moving'}`}></div>
                 </div>
                 <div className="vehicle-meta">
                   <span>{v.model || 'Unknown Model'}</span>
@@ -678,11 +680,11 @@ export default function App() {
                   borderRadius: '12px',
                   fontWeight: '600',
                   textTransform: 'uppercase',
-                  background: activeVehicleStatus === 'moving' ? 'rgba(16, 185, 129, 0.12)' : activeVehicleStatus === 'idle' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                  color: activeVehicleStatus === 'moving' ? '#10b981' : activeVehicleStatus === 'idle' ? '#f59e0b' : '#94a3b8',
-                  border: '1px solid ' + (activeVehicleStatus === 'moving' ? 'rgba(16, 185, 129, 0.3)' : activeVehicleStatus === 'idle' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(148, 163, 184, 0.3)')
+                  background: activeVehicleStatus === 'offline' ? 'rgba(148, 163, 184, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                  color: activeVehicleStatus === 'offline' ? '#94a3b8' : '#10b981',
+                  border: '1px solid ' + (activeVehicleStatus === 'offline' ? 'rgba(148, 163, 184, 0.3)' : 'rgba(16, 185, 129, 0.3)')
                 }}>
-                  {activeVehicleStatus === 'moving' ? '● Online (Moving)' : activeVehicleStatus === 'idle' ? '● Online (Idle)' : '● Offline'}
+                  {activeVehicleStatus === 'offline' ? '● Offline' : '● Online'}
                 </span>
               )}
             </div>
