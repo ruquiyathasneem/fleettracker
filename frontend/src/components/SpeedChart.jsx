@@ -24,33 +24,22 @@ ChartJS.register(
 );
 
 export default function SpeedChart({ routePoints = [] }) {
-  if (!routePoints || routePoints.length === 0) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: '#64748b',
-        fontSize: '13px',
-        textAlign: 'center',
-        padding: '20px'
-      }}>
-        No speed data available. Select a vehicle with trip history or run simulator to see speed graph.
-      </div>
-    );
-  }
+  // If no data, render an empty chart state to maintain UI structure
+  const safeRoutePoints = routePoints && routePoints.length > 0 ? routePoints : [];
 
-  // Format labels and speed coordinates
-  const labels = routePoints.map(p => {
-    // Ensure the date string is parsed as UTC if the backend omitted the 'Z'
-    const dateStr = p.recorded_at;
-    const utcDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
-    const d = new Date(utcDateStr);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  });
+  const labels = safeRoutePoints.length > 0 
+    ? safeRoutePoints.map(p => {
+        if (!p.recorded_at) return '';
+        const dateStr = String(p.recorded_at);
+        const utcDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+        const d = new Date(utcDateStr);
+        return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      })
+    : ['No Data'];
 
-  const speedData = routePoints.map(p => p.speed_kmph || 0);
+  const speedData = safeRoutePoints.length > 0 
+    ? safeRoutePoints.map(p => p.speed_kmph || 0)
+    : [0];
 
   const data = {
     labels,
