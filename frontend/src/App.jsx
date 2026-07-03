@@ -448,10 +448,17 @@ export default function App() {
         setNewVehicle({ reg_number: '', model: '', driver_name: '', device_token: '', speed_limit_kmph: 80.0 });
         addToast('Vehicle registered successfully', 'success');
       } else {
-        const error = await res.json();
-        alert(error.detail || 'Error registering vehicle');
+        let errMessage = 'Error registering vehicle';
+        try {
+          const err = await res.json();
+          errMessage = err.detail || errMessage;
+        } catch (parseErr) {
+          errMessage = `Server Error: ${res.status} ${res.statusText}`;
+        }
+        alert(errMessage);
       }
     } catch (e) {
+      alert(`Network or unexpected error: ${e.message}`);
       console.error(e);
     }
   };
@@ -501,7 +508,8 @@ export default function App() {
         }
         addToast('Vehicle deleted successfully', 'success');
       } else {
-        alert('Error deleting vehicle');
+        const err = await res.json();
+        alert(err.detail || 'Error deleting vehicle');
       }
     } catch (e) {
       console.error(e);
