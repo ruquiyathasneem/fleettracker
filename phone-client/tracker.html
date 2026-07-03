@@ -418,6 +418,7 @@
       }
 
       if (!lastPosition) return;
+      var c = lastPosition.coords; // define coords from lastPosition for the real-GPS path
       var token = document.getElementById('deviceToken').value.trim();
       var apiUrl = document.getElementById('apiUrl').value.trim();
       if (!token || !apiUrl) return;
