@@ -473,6 +473,21 @@ export default function App() {
     }
   };
 
+  const handleDeleteGeofence = async (geofenceId) => {
+    if (!window.confirm("Are you sure you want to delete this geofence boundary?")) return;
+    try {
+      const res = await apiFetch(`/api/geofences/${geofenceId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setGeofences(prev => prev.filter(g => g.id !== geofenceId));
+        addToast('Geofence deleted successfully', 'success');
+      } else {
+        alert('Error deleting geofence');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleCreateGeofence = async (e) => {
     if (e) e.preventDefault();
     try {
@@ -907,6 +922,36 @@ export default function App() {
             </div>
           </div>
 
+          {/* Active Geofences List */}
+          <div className="alerts-container" style={{ flex: 'none', minHeight: 'auto', maxHeight: '180px', marginBottom: '16px' }}>
+            <div className="section-title">
+              Active Boundaries
+            </div>
+            <div style={{ overflowY: 'auto' }}>
+              {geofences.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', margin: '10px 0' }}>
+                  No active boundaries.
+                </div>
+              ) : (
+                geofences.map(gf => (
+                  <div key={gf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', borderBottom: '1px solid var(--border-color)', fontSize: '13px' }}>
+                    <div>
+                      <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{gf.name}</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>Radius: {gf.radius_m}m</div>
+                    </div>
+                    <button 
+                      onClick={() => handleDeleteGeofence(gf.id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', padding: '4px' }}
+                      title="Delete Boundary"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* Recent Geofence Alerts feed */}
           <div className="alerts-container">
             <div className="section-title">
@@ -920,7 +965,8 @@ export default function App() {
               ) : (
                 recentEvents.map(evt => {
                   const timeStr = new Date(evt.occurred_at).toLocaleTimeString();
-                  const action = evt.event_type === 'enter' ? 'entered' : 'exited';
+                  const action = evt.event_type === 'enter' ? 'Entered' : 'Exited';
+                  const vName = vehicles.find(v => v.id === evt.vehicle_id)?.reg_number || `Vehicle #${evt.vehicle_id}`;
                   
                   return (
                     <div key={evt.id} className={`alert-item ${evt.event_type}`}>
@@ -929,10 +975,10 @@ export default function App() {
                       </div>
                       <div>
                         <div style={{ fontWeight: '500' }}>
-                          Geofence {action}
+                          {vName} {action.toLowerCase()} boundary
                         </div>
                         <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          Vehicle crossed <b>{evt.geofence?.name || 'Boundary'}</b>.
+                          Boundary: <b>{evt.geofence?.name || 'Unknown'}</b>
                         </div>
                         <div className="alert-meta">{timeStr}</div>
                       </div>
