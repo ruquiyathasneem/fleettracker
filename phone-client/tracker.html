@@ -451,10 +451,14 @@
             addLog('Ping #' + pingCount + ' sent &mdash; ' + c.latitude.toFixed(5) + ', ' + c.longitude.toFixed(5) + ' @ ' + speedKmh.toFixed(1) + ' km/h', 'success');
           }
         } else {
-          queueLocation(payload);
+          var errBody = '';
+          try { var errJson = await resp.json(); errBody = errJson.detail || JSON.stringify(errJson); } catch(je) { errBody = resp.statusText; }
+          addLog('Server rejected ping (' + resp.status + '): ' + errBody, 'error');
+          setConnBadge('error');
         }
       } catch(e) {
-        queueLocation(payload);
+        addLog('Network error sending ping: ' + e.message, 'error');
+        setConnBadge('error');
       }
     }
 
