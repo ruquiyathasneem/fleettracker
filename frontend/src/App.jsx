@@ -589,7 +589,6 @@ export default function App() {
                 className="form-input" 
                 value={username} 
                 onChange={e => setUsername(e.target.value)} 
-                placeholder={isRegisterMode ? "Choose a username" : "admin"}
                 required 
               />
             </div>
@@ -600,7 +599,6 @@ export default function App() {
                 className="form-input" 
                 value={password} 
                 onChange={e => setPassword(e.target.value)} 
-                placeholder={isRegisterMode ? "Choose a password" : "admin123"}
                 required 
               />
             </div>
@@ -631,11 +629,6 @@ export default function App() {
               </span>
             )}
           </div>
-          {!isRegisterMode && (
-            <div style={{ marginTop: '20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-              💡 Hint: use default username <b>admin</b> & password <b>admin123</b>
-            </div>
-          )}
         </div>
       </div>
     );
