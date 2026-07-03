@@ -65,7 +65,7 @@ export default function SpeedChart({ routePoints = [] }) {
         pointHoverBackgroundColor: '#6366f1',
         pointHoverBorderColor: '#ffffff',
         pointHoverBorderWidth: 2,
-        pointRadius: routePoints.length > 50 ? 0 : 2, // hide dots if too dense
+        pointRadius: 2, // Always show dots even if dense
         lineTension: 0.3,
       },
     ],
