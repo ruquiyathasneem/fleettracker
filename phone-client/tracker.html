@@ -303,8 +303,8 @@
 
       lastPosition = pos;
       var c = pos.coords;
-      var hwSpeed = (c.speed !== null && c.speed !== undefined && !isNaN(c.speed)) ? (c.speed * 3.6) : currentManualSpeed;
-      var speedKmh = hwSpeed;
+      var hwSpeed = (c.speed !== null && c.speed !== undefined && !isNaN(c.speed)) ? (c.speed * 3.6) : 0;
+      var speedKmh = Math.max(hwSpeed, currentManualSpeed);
       if (speedKmh < 0.5) {
         speedKmh = 0; // snap only extreme micro-drift to 0
       }
@@ -450,8 +450,8 @@
       var token = document.getElementById('deviceToken').value.trim();
       var apiUrl = document.getElementById('apiUrl').value.trim();
       if (!token || !apiUrl) return;
-      var hwSpeed = (c.speed !== null && c.speed !== undefined && !isNaN(c.speed)) ? (c.speed * 3.6) : currentManualSpeed;
-      var speedKmh = hwSpeed;
+      var hwSpeed = (c.speed !== null && c.speed !== undefined && !isNaN(c.speed)) ? (c.speed * 3.6) : 0;
+      var speedKmh = Math.max(hwSpeed, currentManualSpeed);
       if (speedKmh < 0.5) {
         speedKmh = 0; // snap only extreme micro-drift to 0
       }
