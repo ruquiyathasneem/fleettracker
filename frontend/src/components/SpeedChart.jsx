@@ -40,9 +40,12 @@ export default function SpeedChart({ routePoints = [] }) {
       </div>
     );
   }
+  // Create a sliding window: only show the last 60 pings (5 minutes of history)
+  // This ensures the graph actively scrolls to the left as new pings arrive
+  const displayPoints = routePoints.slice(-60);
 
   // Format labels and speed coordinates to Indian Standard Time
-  const labels = routePoints.map(p => {
+  const labels = displayPoints.map(p => {
     // Append 'Z' to ensure it is parsed as UTC if the backend didn't include it
     const dateStr = p.recorded_at.endsWith('Z') ? p.recorded_at : `${p.recorded_at}Z`;
     const d = new Date(dateStr);
@@ -55,7 +58,7 @@ export default function SpeedChart({ routePoints = [] }) {
     });
   });
 
-  const speedData = routePoints.map(p => p.speed_kmph || 0);
+  const speedData = displayPoints.map(p => p.speed_kmph || 0);
 
   const data = {
     labels,
