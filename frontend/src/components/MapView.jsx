@@ -6,7 +6,8 @@ export default function MapView({
   selectedVehicleId, 
   activeTripPoints = [], 
   geofences = [], 
-  onAddGeofenceClick 
+  onAddGeofenceClick,
+  onDeleteGeofence
 }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -196,11 +197,37 @@ export default function MapView({
         dashArray: '5, 5'
       }).addTo(map);
 
+      // Add a popup with Delete button
+      const popupDiv = document.createElement('div');
+      popupDiv.innerHTML = `
+        <div style="text-align:center; padding:2px;">
+          <div style="font-weight:600; margin-bottom:10px; font-size: 14px;">${fence.name}</div>
+          <button class="delete-fence-btn" style="background:#f43f5e; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:12px; font-weight: 500; transition: opacity 0.2s;">
+            Delete Boundary
+          </button>
+        </div>
+      `;
+      
+      const btn = popupDiv.querySelector('.delete-fence-btn');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (onDeleteGeofence) {
+          onDeleteGeofence(fence.id);
+        }
+      });
+      
+      btn.addEventListener('mouseover', () => btn.style.opacity = '0.8');
+      btn.addEventListener('mouseout', () => btn.style.opacity = '1');
+
+      circle.bindPopup(popupDiv);
+      
+      // Also add tooltip for hover preview
       circle.bindTooltip(`Geofence: ${fence.name}`, { permanent: false, sticky: true });
+      
       geofencesRef.current[fence.id] = circle;
     });
 
-  }, [geofences]);
+  }, [geofences, onDeleteGeofence]);
 
   // 4. Render Trip Path Route Polyline
   useEffect(() => {

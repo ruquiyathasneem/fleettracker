@@ -896,6 +896,7 @@ export default function App() {
               activeTripPoints={activeTripPoints}
               geofences={geofences}
               onAddGeofenceClick={handleMapAddGeofence}
+              onDeleteGeofence={handleDeleteGeofence}
             />
             {/* Journey Route Address Strip */}
             {activeTrip && (activeTrip.start_address || activeTrip.end_address) && (
