@@ -61,6 +61,14 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
+  // Keep-alive ping: prevents Render free tier from sleeping (cold starts kill tracker pings)
+  useEffect(() => {
+    const keepAlive = () => fetch(`${API_BASE}/health`).catch(() => {});
+    keepAlive(); // ping immediately on load
+    const timer = setInterval(keepAlive, 9 * 60 * 1000); // every 9 minutes
+    return () => clearInterval(timer);
+  }, []);
+
   // WebSockets and Toasts
   const [wsConnected, setWsConnected] = useState(false);
   const [toasts, setToasts] = useState([]);

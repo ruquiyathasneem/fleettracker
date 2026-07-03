@@ -443,7 +443,10 @@
       }
 
       try {
-        var resp = await fetch(apiUrl + '/api/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        var fetchCtrl = new AbortController();
+        var fetchTimeout = setTimeout(() => fetchCtrl.abort(), 45000);
+        var resp = await fetch(apiUrl + '/api/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: fetchCtrl.signal });
+        clearTimeout(fetchTimeout);
         if (resp.ok) {
           pingCount++;
           document.getElementById('statPings').textContent = pingCount;
@@ -473,9 +476,14 @@
         return; 
       }
       var token = document.getElementById('deviceToken').value.trim();
-      var apiUrl = document.getElementById('apiUrl').value.trim();
+      // Auto-fill the hidden apiUrl from page origin if not already set
+      var apiUrlEl = document.getElementById('apiUrl');
+      if (!apiUrlEl.value && window.location.origin && window.location.protocol.startsWith('http')) {
+        apiUrlEl.value = window.location.origin;
+      }
+      var apiUrl = apiUrlEl.value.trim();
       if (!token) { addLog('Please enter a Device Token first.', 'warn'); return; }
-      if (!apiUrl) { addLog('Please enter the Backend URL first.', 'warn'); return; }
+      if (!apiUrl) { addLog('Cannot determine backend URL.', 'warn'); return; }
       var highAccuracy = document.getElementById('accuracyMode').value === 'high';
       isTracking = true;
       document.getElementById('gpsWarning').classList.remove('show');

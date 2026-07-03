@@ -117,6 +117,10 @@ def read_root():
         "docs_url": "/docs"
     }
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 # --- WEBSOCKET ENDPOINT ---
 
 @app.websocket("/ws/live")
