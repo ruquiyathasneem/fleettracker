@@ -157,22 +157,19 @@
     </div>
 
     <div class="form-card">
-      <h3>&#x2699;&#xFE0F; Device Settings</h3>
       <div class="form-row">
         <label>Device Token</label>
         <input type="text" id="deviceToken" value="tracker-device-123" placeholder="tracker-device-123" />
       </div>
-      <input type="hidden" id="apiUrl" value="" />
-      <input type="checkbox" id="mockLocation" style="display: none;" />
-      <div class="form-row">
-        <label>Send Interval: <b id="sliderVal">5</b> seconds</label>
-        <input type="range" id="intervalSlider" min="3" max="30" value="5" step="1" oninput="updateInterval(this.value)" />
-      </div>
-      <div class="form-row">
-        <label>GPS Accuracy Mode</label>
+
+      <!-- Hidden settings to keep JS running without DOM errors -->
+      <div style="display: none;">
+        <input type="hidden" id="apiUrl" value="" />
+        <input type="checkbox" id="mockLocation" />
+        <b id="sliderVal">5</b>
+        <input type="range" id="intervalSlider" min="3" max="30" value="5" step="1" />
         <select id="accuracyMode">
-          <option value="high">High Accuracy (GPS chip - better, uses more battery)</option>
-          <option value="low">Low Accuracy (Network/WiFi - saves battery)</option>
+          <option value="high" selected>High Accuracy</option>
         </select>
       </div>
     </div>
