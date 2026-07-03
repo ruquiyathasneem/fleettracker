@@ -309,14 +309,18 @@ export default function App() {
               }];
             });
 
-            // Refresh trips to show new distance
+            // Refresh trips to show new distance and dynamically add newly started trips
             if (loc.active_trip) {
-              setTrips(prev => prev.map(t => {
-                if (t.id === loc.active_trip.id) {
-                  return { ...t, ...loc.active_trip };
+              setTrips(prev => {
+                const exists = prev.find(t => t.id === loc.active_trip.id);
+                if (exists) {
+                  return prev.map(t => t.id === loc.active_trip.id ? { ...t, ...loc.active_trip } : t);
                 }
-                return t;
-              }));
+                return [loc.active_trip, ...prev];
+              });
+              
+              // If no trip is currently selected, auto-select the newly started trip
+              setSelectedTripId(prev => prev || loc.active_trip.id);
             }
           }
 
