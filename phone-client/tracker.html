@@ -300,6 +300,7 @@
     }
 
     function onPositionError(err) {
+      lastPosition = null; // Clear coordinate buffer to stop phantom sending if location is turned off
       var msgs = { 1: 'Permission denied. Allow location in browser settings.', 2: 'Position unavailable. Check GPS signal.', 3: 'GPS timed out. Retrying...' };
       var msg = msgs[err.code] || err.message;
       document.getElementById('gpsWarning').classList.add('show');

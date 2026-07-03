@@ -663,53 +663,28 @@ export default function App() {
       {/* RIGHT WORKSPACE: Maps, Charts & Feeds */}
       <div className="main-content">
         <div className="top-nav">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h2 style={{ margin: 0 }}>{activeVehicle ? `${activeVehicle.reg_number} Tracker` : 'Fleet Control Panel'}</h2>
-                {activeVehicle && (
-                  <span style={{
-                    fontSize: '10px',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontWeight: '600',
-                    textTransform: 'uppercase',
-                    background: activeVehicleStatus === 'moving' ? 'rgba(16, 185, 129, 0.12)' : activeVehicleStatus === 'idle' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                    color: activeVehicleStatus === 'moving' ? '#10b981' : activeVehicleStatus === 'idle' ? '#f59e0b' : '#94a3b8',
-                    border: '1px solid ' + (activeVehicleStatus === 'moving' ? 'rgba(16, 185, 129, 0.3)' : activeVehicleStatus === 'idle' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(148, 163, 184, 0.3)')
-                  }}>
-                    {activeVehicleStatus === 'moving' ? '● Online (Moving)' : activeVehicleStatus === 'idle' ? '● Online (Idle)' : '● Offline'}
-                  </span>
-                )}
-              </div>
-              {activeVehicle && activeVehicle.address && (
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', maxWidth: '350px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  📍 {activeVehicle.address}
-                </div>
+          {/* Row 1: Vehicle Title + Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 style={{ margin: 0 }}>{activeVehicle ? `${activeVehicle.reg_number} Tracker` : 'Fleet Control Panel'}</h2>
+              {activeVehicle && (
+                <span style={{
+                  fontSize: '10px',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontWeight: '600',
+                  textTransform: 'uppercase',
+                  background: activeVehicleStatus === 'moving' ? 'rgba(16, 185, 129, 0.12)' : activeVehicleStatus === 'idle' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                  color: activeVehicleStatus === 'moving' ? '#10b981' : activeVehicleStatus === 'idle' ? '#f59e0b' : '#94a3b8',
+                  border: '1px solid ' + (activeVehicleStatus === 'moving' ? 'rgba(16, 185, 129, 0.3)' : activeVehicleStatus === 'idle' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(148, 163, 184, 0.3)')
+                }}>
+                  {activeVehicleStatus === 'moving' ? '● Online (Moving)' : activeVehicleStatus === 'idle' ? '● Online (Idle)' : '● Offline'}
+                </span>
               )}
             </div>
-          </div>
 
-          <div className="nav-actions">
-            {/* Displaying active trip details */}
             {activeVehicle && (
-              <>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  {activeVehicle.driver ? `Driver: ${activeVehicle.driver.name}` : 'No Driver Assigned'}
-                </div>
-                <div style={{ 
-                  fontSize: '11px', 
-                  background: 'rgba(239, 68, 68, 0.1)', 
-                  border: '1px solid rgba(239, 68, 68, 0.3)', 
-                  color: '#f87171', 
-                  padding: '3px 8px', 
-                  borderRadius: '4px',
-                  marginRight: '8px',
-                  display: 'inline-flex',
-                  alignItems: 'center'
-                }}>
-                  Limit: {activeVehicle.speed_limit_kmph} km/h
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button 
                   className="nav-btn" 
                   onClick={() => {
@@ -744,52 +719,90 @@ export default function App() {
                 >
                   <Trash2 size={12} /> Delete
                 </button>
-              </>
-            )}
-
-            {/* Trip list selector */}
-            {trips.length > 0 && (
-              <select 
-                style={{
-                  background: 'var(--bg-base)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-primary)',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  outline: 'none',
-                  maxWidth: '280px'
-                }}
-                value={selectedTripId || ''}
-                onChange={e => setSelectedTripId(parseInt(e.target.value))}
-              >
-                {trips.map(t => {
-                  const start = new Date(t.start_time).toLocaleDateString();
-                  const fromLabel = t.start_address
-                    ? t.start_address.split(',').slice(0, 2).join(',')
-                    : (t.start_lat ? `${t.start_lat.toFixed(4)}, ${t.start_lng.toFixed(4)}` : '?');
-                  return (
-                    <option key={t.id} value={t.id}>
-                      Trip #{t.id} ({start}) · {t.distance_km.toFixed(1)} km · From: {fromLabel}
-                    </option>
-                  );
-                })}
-              </select>
-            )}
-
-            {/* Generate PDF Report Button */}
-            {selectedTripId && (
-              <a 
-                href={`${API_BASE}/api/trips/${selectedTripId}/report.pdf`}
-                target="_blank" 
-                rel="noreferrer" 
-                className="nav-btn"
-                style={{ textDecoration: 'none' }}
-              >
-                <FileText size={14} /> Export PDF Report
-              </a>
+                {selectedTripId && (
+                  <a 
+                    href={`${API_BASE}/api/trips/${selectedTripId}/report.pdf`}
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="nav-btn"
+                    style={{ textDecoration: 'none', padding: '6px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <FileText size={12} /> Export PDF
+                  </a>
+                )}
+              </div>
             )}
           </div>
+
+          {/* Row 2: Location, Metadata & Trip Selector */}
+          {activeVehicle && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between', 
+              width: '100%', 
+              flexWrap: 'wrap', 
+              gap: '8px', 
+              borderTop: '1px solid rgba(255,255,255,0.05)', 
+              paddingTop: '8px',
+              marginTop: '4px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                {activeVehicle.address && (
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', maxWidth: '380px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={activeVehicle.address}>
+                    📍 {activeVehicle.address}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <span>•</span>
+                  <span>{activeVehicle.driver ? `Driver: ${activeVehicle.driver.name}` : 'No Driver Assigned'}</span>
+                  <span>•</span>
+                  <span style={{ 
+                    fontSize: '11px', 
+                    background: 'rgba(239, 68, 68, 0.1)', 
+                    border: '1px solid rgba(239, 68, 68, 0.3)', 
+                    color: '#f87171', 
+                    padding: '2px 6px', 
+                    borderRadius: '4px'
+                  }}>
+                    Limit: {activeVehicle.speed_limit_kmph} km/h
+                  </span>
+                </div>
+              </div>
+
+              {trips.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Trip History:</span>
+                  <select 
+                    style={{
+                      background: 'var(--bg-base)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      outline: 'none',
+                      maxWidth: '240px'
+                    }}
+                    value={selectedTripId || ''}
+                    onChange={e => setSelectedTripId(parseInt(e.target.value))}
+                  >
+                    {trips.map(t => {
+                      const start = new Date(t.start_time).toLocaleDateString();
+                      const fromLabel = t.start_address
+                        ? t.start_address.split(',').slice(0, 2).join(',')
+                        : (t.start_lat ? `${t.start_lat.toFixed(4)}, ${t.start_lng.toFixed(4)}` : '?');
+                      return (
+                        <option key={t.id} value={t.id}>
+                          Trip #{t.id} ({start}) · {t.distance_km.toFixed(1)} km · From: {fromLabel}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Dynamic Grid Layout */}

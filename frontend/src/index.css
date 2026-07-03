@@ -266,12 +266,14 @@ body {
 }
 
 .top-nav {
-  height: 64px;
+  min-height: 64px;
+  height: auto;
   border-bottom: 1px solid var(--border-color);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 24px;
+  gap: 8px;
   background-color: var(--bg-surface);
 }
 
