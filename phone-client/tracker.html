@@ -396,7 +396,24 @@
           document.getElementById('gpsWarning').classList.remove('show');
           onPositionUpdate(pos);
         } catch (err) {
-          onPositionError(err);
+          // Hybrid Fallback: If high accuracy GPS times out/fails indoors, retry immediately with low accuracy (Wi-Fi/Cell)
+          if (err.code === 3 || err.code === 2) {
+            try {
+              var fallbackPos = await new Promise(function(resolve, reject) {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { 
+                  enableHighAccuracy: false, 
+                  timeout: 10000, 
+                  maximumAge: 10000 
+                });
+              });
+              document.getElementById('gpsWarning').classList.remove('show');
+              onPositionUpdate(fallbackPos);
+            } catch (fbErr) {
+              onPositionError(fbErr);
+            }
+          } else {
+            onPositionError(err);
+          }
         }
       }
 
