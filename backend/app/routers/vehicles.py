@@ -71,7 +71,17 @@ def create_vehicle(vehicle: VehicleCreate, db: Session = Depends(get_db), curren
 
 @router.get("/vehicles", response_model=List[VehicleResponse])
 def get_vehicles(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    return db.query(Vehicle).all()
+    vehicles = db.query(Vehicle).all()
+    for v in vehicles:
+        last_log = db.query(LocationLog).filter(LocationLog.vehicle_id == v.id).order_by(LocationLog.recorded_at.desc()).first()
+        if last_log:
+            v.latitude = last_log.latitude
+            v.longitude = last_log.longitude
+            v.speed_kmph = last_log.speed_kmph
+            v.heading = last_log.heading
+            v.recorded_at = last_log.recorded_at
+            v.address = last_log.address
+    return vehicles
 
 @router.put("/vehicles/{id}", response_model=VehicleResponse)
 def update_vehicle(id: int, vehicle: VehicleCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):

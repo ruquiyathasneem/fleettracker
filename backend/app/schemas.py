@@ -33,6 +33,12 @@ class VehicleResponse(VehicleBase):
     id: int
     created_at: datetime
     driver: Optional[DriverResponse] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    speed_kmph: Optional[float] = 0.0
+    heading: Optional[float] = 0.0
+    recorded_at: Optional[datetime] = None
+    address: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -96,23 +96,10 @@ export default function App() {
     
     const loadData = async () => {
       try {
-        // Fetch vehicles
+        // Fetch vehicles (with pre-joined latest coordinates!)
         const vRes = await apiFetch('/api/vehicles');
         const vData = await vRes.json();
-        
-        // Fetch latest coordinates for each vehicle
-        const vehiclesWithLocations = await Promise.all(vData.map(async (v) => {
-          try {
-            const locRes = await apiFetch(`/api/vehicles/${v.id}/live`);
-            const locData = await locRes.json();
-            if (locData) {
-              return { ...v, latitude: locData.latitude, longitude: locData.longitude, speed_kmph: locData.speed_kmph, heading: locData.heading, recorded_at: locData.recorded_at, address: locData.address };
-            }
-          } catch (e) {}
-          return { ...v, latitude: null, longitude: null, speed_kmph: 0, heading: 0, address: null };
-        }));
-        
-        setVehicles(vehiclesWithLocations);
+        setVehicles(vData);
 
         // Fetch recent geofence violations
         const eRes = await apiFetch('/api/geofences/events/recent');
