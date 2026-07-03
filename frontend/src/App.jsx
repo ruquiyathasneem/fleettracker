@@ -135,6 +135,10 @@ export default function App() {
   useEffect(() => {
     if (!token || !selectedVehicleId) return;
 
+    // Immediately clear path so previous vehicle's route doesn't bleed into new selection
+    setActiveTripPoints([]);
+    setSelectedTripId(null);
+
     const loadVehicleSubData = async () => {
       try {
         // Load geofences
@@ -852,11 +856,16 @@ export default function App() {
           <div className="chart-container">
             <div className="section-title">
               Speed Curve
-              {activeTrip && (
-                <span style={{ fontSize: '11px', textTransform: 'none', fontWeight: 'normal' }}>
-                  Max: {activeTrip.max_speed_kmph.toFixed(1)} km/h | Avg: {activeTrip.avg_speed_kmph.toFixed(1)} km/h
-                </span>
-              )}
+              {activeTripPoints.length > 0 && (() => {
+                const speeds = activeTripPoints.map(p => p.speed_kmph || 0);
+                const maxSpd = Math.max(...speeds);
+                const avgSpd = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+                return (
+                  <span style={{ fontSize: '11px', textTransform: 'none', fontWeight: 'normal' }}>
+                    Max: {maxSpd.toFixed(1)} km/h | Avg: {avgSpd.toFixed(1)} km/h
+                  </span>
+                );
+              })()}
             </div>
             <div style={{ flex: 1, minHeight: 0 }}>
               <SpeedChart routePoints={activeTripPoints} />
