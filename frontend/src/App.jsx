@@ -956,42 +956,45 @@ export default function App() {
             </div>
           </div>
 
-          {/* Active Geofences List */}
-          <div className="alerts-container" style={{ flex: 'none', minHeight: 'auto', maxHeight: '180px', marginBottom: '16px' }}>
-            <div className="section-title">
-              Active Boundaries
-            </div>
-            <div style={{ overflowY: 'auto' }}>
-              {geofences.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', margin: '10px 0' }}>
-                  No active boundaries.
-                </div>
-              ) : (
-                geofences.map(gf => (
-                  <div key={gf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', borderBottom: '1px solid var(--border-color)', fontSize: '13px' }}>
-                    <div>
-                      <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{gf.name}</div>
-                      <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>Radius: {gf.radius_m}m</div>
-                    </div>
-                    <button 
-                      onClick={() => handleDeleteGeofence(gf.id)}
-                      style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', padding: '4px' }}
-                      title="Delete Boundary"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Recent Geofence Alerts feed */}
+          {/* Right side panel for Geofences and Alerts */}
           <div className="alerts-container">
-            <div className="section-title">
-              Security Logs (Geofencing)
+            
+            {/* Active Geofences List */}
+            <div style={{ flex: 'none', marginBottom: '16px' }}>
+              <div className="section-title">
+                Active Boundaries
+              </div>
+              <div style={{ maxHeight: '140px', overflowY: 'auto' }}>
+                {geofences.length === 0 ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', margin: '10px 0' }}>
+                    No active boundaries.
+                  </div>
+                ) : (
+                  geofences.map(gf => (
+                    <div key={gf.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', borderBottom: '1px solid var(--border-color)', fontSize: '13px' }}>
+                      <div>
+                        <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{gf.name}</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>Radius: {gf.radius_m}m</div>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteGeofence(gf.id)}
+                        style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.2)', color: 'var(--accent-rose)', cursor: 'pointer', padding: '6px', borderRadius: '4px' }}
+                        title="Delete Boundary"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-            <div style={{ overflowY: 'auto', flex: 1 }}>
+
+            {/* Recent Geofence Alerts feed */}
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div className="section-title">
+                Security Logs (Geofencing)
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
               {recentEvents.length === 0 ? (
                 <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', marginTop: '20px' }}>
                   No boundary violations logged.
