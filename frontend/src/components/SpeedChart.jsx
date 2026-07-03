@@ -43,7 +43,10 @@ export default function SpeedChart({ routePoints = [] }) {
 
   // Format labels and speed coordinates
   const labels = routePoints.map(p => {
-    const d = new Date(p.recorded_at);
+    // Ensure the date string is parsed as UTC if the backend omitted the 'Z'
+    const dateStr = p.recorded_at;
+    const utcDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const d = new Date(utcDateStr);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   });
 
