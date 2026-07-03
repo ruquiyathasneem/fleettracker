@@ -1027,6 +1027,7 @@ export default function App() {
           </div>
         </div>
       </div>
+      </div>
 
       {/* MODALS */}
       {/* 1. Add Vehicle Modal */}
