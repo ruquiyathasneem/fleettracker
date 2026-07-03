@@ -44,28 +44,31 @@ app.add_middleware(
 def seed_database():
     db = SessionLocal()
     try:
-        # Run migrations for multi-tenant setup (add owner_id if missing)
-        try:
-            db.execute(text('ALTER TABLE drivers ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
-            db.execute(text('UPDATE drivers SET owner_id = 1 WHERE owner_id IS NULL;'))
-            db.execute(text('ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
-            db.execute(text('UPDATE vehicles SET owner_id = 1 WHERE owner_id IS NULL;'))
-            db.execute(text('ALTER TABLE geofences ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
-            db.execute(text('UPDATE geofences SET owner_id = 1 WHERE owner_id IS NULL;'))
-            db.execute(text('ALTER TABLE trips ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
-            db.execute(text('UPDATE trips SET owner_id = 1 WHERE owner_id IS NULL;'))
-            db.commit()
-            logger.info("Successfully applied multi-tenant schema migrations.")
-        except Exception as e:
-            logger.error(f"Migration error (safe to ignore if using SQLite): {e}")
-            db.rollback()
-
-        # Check if users exist
+        # 1. Ensure at least one user exists (required for migrations to satisfy NOT NULL foreign keys)
         if db.query(User).count() == 0:
             logger.info("Seeding default user...")
             admin_user = User(username="admin", password_hash="admin123", role="admin")
             db.add(admin_user)
             db.commit()
+            
+        default_user = db.query(User).first()
+        fallback_owner_id = default_user.id if default_user else 1
+
+        # 2. Run migrations for multi-tenant setup (add owner_id if missing)
+        try:
+            db.execute(text('ALTER TABLE drivers ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
+            db.execute(text(f'UPDATE drivers SET owner_id = {fallback_owner_id} WHERE owner_id IS NULL;'))
+            db.execute(text('ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
+            db.execute(text(f'UPDATE vehicles SET owner_id = {fallback_owner_id} WHERE owner_id IS NULL;'))
+            db.execute(text('ALTER TABLE geofences ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
+            db.execute(text(f'UPDATE geofences SET owner_id = {fallback_owner_id} WHERE owner_id IS NULL;'))
+            db.execute(text('ALTER TABLE trips ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id);'))
+            db.execute(text(f'UPDATE trips SET owner_id = {fallback_owner_id} WHERE owner_id IS NULL;'))
+            db.commit()
+            logger.info("Successfully applied multi-tenant schema migrations.")
+        except Exception as e:
+            logger.error(f"Migration error (safe to ignore if using SQLite): {e}")
+            db.rollback()
 
         # Check if drivers exist
         if db.query(Driver).count() == 0:
