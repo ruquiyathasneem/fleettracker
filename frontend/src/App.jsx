@@ -11,6 +11,17 @@ const WS_BASE  = import.meta.env.VITE_API_BASE
   ? import.meta.env.VITE_API_BASE.replace('https://', 'wss://').replace('http://', 'ws://')
   : 'ws://localhost:8000';
 
+const getRelativeTime = (isoString) => {
+  if (!isoString) return 'Offline';
+  const diffMs = new Date() - new Date(isoString);
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Online';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return new Date(isoString).toLocaleDateString();
+};
+
 export default function App() {
   // Authentication State
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -42,6 +53,13 @@ export default function App() {
   // Edit Entity State
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [editVehicleForm, setEditVehicleForm] = useState({ reg_number: '', model: '', driver_name: '', device_token: '', speed_limit_kmph: 80.0 });
+
+  // Trigger UI re-render every 10 seconds to update online/offline relative times
+  const [timeTick, setTimeTick] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setTimeTick(Date.now()), 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   // WebSockets and Toasts
   const [wsConnected, setWsConnected] = useState(false);
@@ -547,6 +565,16 @@ export default function App() {
   const activeVehicle = vehicles.find(v => v.id === selectedVehicleId);
   const activeTrip = trips.find(t => t.id === selectedTripId);
 
+  // Calculate active vehicle status
+  const getVehicleStatus = (v) => {
+    if (!v) return 'offline';
+    const lastActive = v.recorded_at ? new Date(v.recorded_at) : null;
+    const isRecent = lastActive && (new Date() - lastActive) < 60000;
+    const speed = v.speed_kmph || 0;
+    return isRecent ? (speed > 2.0 ? 'moving' : 'idle') : 'offline';
+  };
+  const activeVehicleStatus = getVehicleStatus(activeVehicle);
+
   return (
     <div className="app-layout">
       {/* Toast Notification Box */}
@@ -585,8 +613,10 @@ export default function App() {
             Active Fleet ({vehicles.length})
           </div>
           {vehicles.map(v => {
+            const lastActive = v.recorded_at ? new Date(v.recorded_at) : null;
+            const isRecent = lastActive && (new Date() - lastActive) < 60000;
             const speed = v.speed_kmph || 0;
-            const status = v.latitude ? (speed > 2.0 ? 'moving' : 'idle') : 'offline';
+            const status = isRecent ? (speed > 2.0 ? 'moving' : 'idle') : 'offline';
             return (
               <div 
                 key={v.id} 
@@ -602,7 +632,8 @@ export default function App() {
                 </div>
                 <div className="vehicle-meta">
                   <span>{v.model || 'Unknown Model'}</span>
-                  <span>{v.latitude ? `${speed.toFixed(0)} km/h` : 'No Signal'}</span>
+                  <span>{status === 'offline' ? getRelativeTime(v.recorded_at) : `${speed.toFixed(0)} km/h`}</span>
+                </div>
                 </div>
               </div>
             );
@@ -634,35 +665,27 @@ export default function App() {
         <div className="top-nav">
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div>
-              <h2 style={{ margin: 0 }}>{activeVehicle ? `${activeVehicle.reg_number} Tracker` : 'Fleet Control Panel'}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ margin: 0 }}>{activeVehicle ? `${activeVehicle.reg_number} Tracker` : 'Fleet Control Panel'}</h2>
+                {activeVehicle && (
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontWeight: '600',
+                    textTransform: 'uppercase',
+                    background: activeVehicleStatus === 'moving' ? 'rgba(16, 185, 129, 0.12)' : activeVehicleStatus === 'idle' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                    color: activeVehicleStatus === 'moving' ? '#10b981' : activeVehicleStatus === 'idle' ? '#f59e0b' : '#94a3b8',
+                    border: '1px solid ' + (activeVehicleStatus === 'moving' ? 'rgba(16, 185, 129, 0.3)' : activeVehicleStatus === 'idle' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(148, 163, 184, 0.3)')
+                  }}>
+                    {activeVehicleStatus === 'moving' ? '● Online (Moving)' : activeVehicleStatus === 'idle' ? '● Online (Idle)' : '● Offline'}
+                  </span>
+                )}
+              </div>
               {activeVehicle && activeVehicle.address && (
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', maxWidth: '350px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   📍 {activeVehicle.address}
                 </div>
-              )}
-            </div>
-            
-            {/* WebSocket status light */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              background: 'rgba(255,255,255,0.03)', 
-              padding: '4px 8px', 
-              borderRadius: '20px', 
-              fontSize: '11px',
-              border: '1px solid var(--border-color)'
-            }}>
-              {wsConnected ? (
-                <>
-                  <Wifi size={12} color="var(--accent-emerald)" />
-                  <span style={{ color: 'var(--text-secondary)' }}>Server Connected</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff size={12} color="var(--accent-rose)" />
-                  <span style={{ color: 'var(--accent-rose)' }}>Connecting...</span>
-                </>
               )}
             </div>
           </div>
