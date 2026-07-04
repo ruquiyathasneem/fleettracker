@@ -217,9 +217,10 @@ export default function App() {
       try {
         const res = await apiFetch(`/api/trips/${selectedTripId}`);
         const data = await res.json();
+        console.log('[TRIP] loadTripDetails got', data.route_points?.length, 'points for trip', selectedTripId);
         setActiveTripPoints(data.route_points || []);
       } catch (err) {
-        console.error(err);
+        console.error('[TRIP] loadTripDetails error:', err);
       }
     };
 
@@ -276,6 +277,7 @@ export default function App() {
         const msg = JSON.parse(event.data);
         if (msg.event_type === 'location_update') {
           const loc = msg.data;
+          console.log('[WS] location_update received:', loc.vehicle_id, 'speed:', loc.speed_kmph, 'selectedVehicle:', selectedVehicleIdRef.current);
           
           // 1. Update matching vehicle coordinates inside list
           setVehicles(prev => prev.map(v => {
@@ -295,6 +297,7 @@ export default function App() {
 
           // 2. If the updated vehicle is the currently selected one, append point to active polyline
           if (loc.vehicle_id === selectedVehicleIdRef.current) {
+            console.log('[WS] Vehicle match! Appending point. speed_kmph=', loc.speed_kmph);
             setActiveTripPoints(prev => {
               // Use a sliding window — keep last 200 points max, no duplicate guard needed
               // since each ping has a unique Date.now() id
