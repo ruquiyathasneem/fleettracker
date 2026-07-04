@@ -95,6 +95,7 @@ export default function SpeedChart({ routePoints = [] }) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: false, // Disable animation so updates are instantaneous and snappy
     plugins: {
       legend: {
         display: false, // Hide label legend to keep it clean
@@ -120,10 +121,10 @@ export default function SpeedChart({ routePoints = [] }) {
         },
         ticks: {
           color: '#94a3b8',
-          font: { size: 11, family: 'Inter, sans-serif' },
-          autoSkip: true,
-          maxTicksLimit: 6, // Clean spacing, never cluttered
-          maxRotation: 0, // Keep them flat and readable
+          font: { size: 10, family: 'Inter, sans-serif' },
+          autoSkip: false, // Force every label to render so the scroll is visually obvious
+          maxRotation: 45, // Angle labels to prevent overlapping
+          minRotation: 45
         }
       },
       y: {
