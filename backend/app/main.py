@@ -6,6 +6,8 @@ from .ws_manager import manager
 from .models import User, Driver, Vehicle, Geofence
 import logging
 import os
+import asyncio
+import httpx
 from sqlalchemy import text
 
 # Initialize logger
@@ -123,6 +125,30 @@ print(f"MOUNTING TRACKER CLIENT DIR AT: {phone_client_dir}", flush=True)
 app.mount("/tracker-client", StaticFiles(directory=phone_client_dir), name="tracker-client")
 
 seed_database()
+
+# --- KEEP-ALIVE: ping /health every 14 min to prevent Render free tier from sleeping ---
+async def keep_alive():
+    """
+    Background task: pings this server's own /health endpoint every 14 minutes.
+    Render free tier sleeps after 15 minutes of inactivity. This prevents that.
+    """
+    self_url = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
+    if not self_url:
+        logger.info("keep_alive: RENDER_EXTERNAL_URL not set, skipping self-ping.")
+        return
+    await asyncio.sleep(60)  # Wait 1 minute after startup before first ping
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(f"{self_url}/health")
+                logger.info(f"keep_alive: self-ping {r.status_code}")
+        except Exception as e:
+            logger.warning(f"keep_alive: self-ping failed: {e}")
+        await asyncio.sleep(14 * 60)  # every 14 minutes
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(keep_alive())
 
 # Register routers
 app.include_router(auth.router)
