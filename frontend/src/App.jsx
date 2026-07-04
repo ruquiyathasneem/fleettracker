@@ -136,10 +136,19 @@ export default function App() {
     
     const loadData = async () => {
       try {
+        // Show cached vehicles instantly while fetching fresh data
+        const cacheKey = `vehicles_cache_${token.slice(-8)}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try { setVehicles(JSON.parse(cached)); } catch (_) {}
+        }
+
         // Fetch vehicles (with pre-joined latest coordinates!)
         const vRes = await apiFetch('/api/vehicles');
         const vData = await vRes.json();
         setVehicles(vData);
+        // Cache for instant next load
+        localStorage.setItem(cacheKey, JSON.stringify(vData));
 
         // Fetch recent geofence violations
         const eRes = await apiFetch('/api/geofences/events/recent');
@@ -580,38 +589,57 @@ export default function App() {
   };
 
   const handleDeleteGeofence = async (geofenceId) => {
-    if (!window.confirm("Are you sure you want to delete this geofence boundary?")) return;
+    // Optimistic delete — remove from UI instantly, revert if API fails
+    const backup = geofences.find(g => g.id === geofenceId);
+    if (!backup) return;
+    setGeofences(prev => prev.filter(g => g.id !== geofenceId));
+    addToast('Geofence removed', 'success');
     try {
       const res = await apiFetch(`/api/geofences/${geofenceId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setGeofences(prev => prev.filter(g => g.id !== geofenceId));
-        addToast('Geofence deleted successfully', 'success');
-      } else {
-        alert('Error deleting geofence');
+      if (!res.ok) {
+        // Revert
+        setGeofences(prev => [...prev, backup]);
+        addToast('Failed to delete geofence — restored', 'error');
       }
     } catch (e) {
+      setGeofences(prev => [...prev, backup]);
+      addToast('Network error — geofence restored', 'error');
       console.error(e);
     }
   };
 
   const handleCreateGeofence = async (e) => {
     if (e) e.preventDefault();
+    // Optimistic create — add to UI instantly with a temp ID
+    const tempId = `temp-${Date.now()}`;
+    const optimisticGeofence = {
+      id: tempId,
+      ...newGeofence,
+      vehicle_id: selectedVehicleId,
+      active: true
+    };
+    setGeofences(prev => [...prev, optimisticGeofence]);
+    setShowGeofenceModal(false);
+    addToast(`Geofence "${newGeofence.name}" saved!`, 'success');
+
     try {
-      const payload = {
-        ...newGeofence,
-        vehicle_id: selectedVehicleId
-      };
+      const payload = { ...newGeofence, vehicle_id: selectedVehicleId };
       const res = await apiFetch('/api/geofences', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        const g = await res.json();
-        setGeofences(prev => [...prev, g]);
-        setShowGeofenceModal(false);
-        addToast(`Geofence "${newGeofence.name}" saved!`, 'success');
+        const realGeofence = await res.json();
+        // Replace temp with real data (real ID from backend)
+        setGeofences(prev => prev.map(g => g.id === tempId ? realGeofence : g));
+      } else {
+        // Revert
+        setGeofences(prev => prev.filter(g => g.id !== tempId));
+        addToast('Failed to save geofence — please try again', 'error');
       }
     } catch (e) {
+      setGeofences(prev => prev.filter(g => g.id !== tempId));
+      addToast('Network error saving geofence', 'error');
       console.error(e);
     }
   };
