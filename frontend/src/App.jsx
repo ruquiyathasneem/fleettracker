@@ -267,7 +267,8 @@ export default function App() {
 
       ws.onclose = () => {
         setWsConnected(false);
-        // Attempt reconnection after 4 seconds
+        // Clean up old reference before reconnecting to avoid duplicate handlers
+        wsRef.current = null;
         setTimeout(connectWebSocket, 4000);
       };
 
@@ -295,9 +296,9 @@ export default function App() {
           // 2. If the updated vehicle is the currently selected one, append point to active polyline
           if (loc.vehicle_id === selectedVehicleIdRef.current) {
             setActiveTripPoints(prev => {
-              // Ensure no duplicate timestamps
-              if (prev.some(p => p.recorded_at === loc.recorded_at)) return prev;
-              return [...prev, {
+              // Use a sliding window — keep last 200 points max, no duplicate guard needed
+              // since each ping has a unique Date.now() id
+              const newPoint = {
                 id: Date.now(),
                 vehicle_id: loc.vehicle_id,
                 latitude: loc.latitude,
@@ -306,7 +307,8 @@ export default function App() {
                 heading: loc.heading,
                 recorded_at: loc.recorded_at,
                 address: loc.address
-              }];
+              };
+              return [...prev, newPoint].slice(-200);
             });
 
             // Refresh trips to show new distance and dynamically add newly started trips
