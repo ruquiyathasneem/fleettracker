@@ -40,15 +40,13 @@ export default function SpeedChart({ routePoints = [] }) {
       </div>
     );
   }
-  // Create a sliding window: only show the last 60 pings (5 minutes of history)
-  // This ensures the graph actively scrolls to the left as new pings arrive
-  const displayPoints = routePoints.slice(-60);
 
-  // Format labels and speed coordinates to Indian Standard Time
-  const labels = displayPoints.map(p => {
-    // Append 'Z' to ensure it is parsed as UTC if the backend didn't include it
-    const dateStr = p.recorded_at.endsWith('Z') ? p.recorded_at : `${p.recorded_at}Z`;
-    const d = new Date(dateStr);
+  // Format labels and speed coordinates
+  const labels = routePoints.map(p => {
+    // Ensure the date string is parsed as UTC if the backend omitted the 'Z'
+    const dateStr = p.recorded_at;
+    const utcDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const d = new Date(utcDateStr);
     return d.toLocaleTimeString('en-IN', { 
       timeZone: 'Asia/Kolkata', 
       hour: '2-digit', 
@@ -58,7 +56,7 @@ export default function SpeedChart({ routePoints = [] }) {
     });
   });
 
-  const speedData = displayPoints.map(p => p.speed_kmph || 0);
+  const speedData = routePoints.map(p => p.speed_kmph || 0);
 
   const data = {
     labels,
@@ -67,27 +65,17 @@ export default function SpeedChart({ routePoints = [] }) {
         label: 'Speed (km/h)',
         data: speedData,
         fill: true,
-        backgroundColor: (context) => {
-          const chart = context.chart;
-          const { ctx, chartArea } = chart;
-          if (!chartArea) return 'rgba(99, 102, 241, 0.1)';
-          const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-          gradient.addColorStop(0, 'rgba(99, 102, 241, 0.5)');
-          gradient.addColorStop(1, 'rgba(99, 102, 241, 0.0)');
-          return gradient;
-        },
-        borderColor: '#818cf8',
-        borderWidth: 3,
-        pointBackgroundColor: '#ffffff',
-        pointBorderColor: '#818cf8',
-        pointBorderWidth: 2,
-        pointHoverRadius: 6,
-        pointHoverBackgroundColor: '#ffffff',
-        pointHoverBorderColor: '#6366f1',
-        pointHoverBorderWidth: 3,
-        pointRadius: 3, // Restore static dots so users can see each individual ping being plotted
-        pointHitRadius: 15, // Large invisible hit area for easy hovering
-        lineTension: 0.4, // Super smooth bezier curves
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+        borderColor: '#6366f1',
+        borderWidth: 2,
+        pointBackgroundColor: '#06b6d4',
+        pointBorderColor: '#ffffff',
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#6366f1',
+        pointHoverBorderColor: '#ffffff',
+        pointHoverBorderWidth: 2,
+        pointRadius: 2, // Never hide dots so graph doesn't look dead
+        lineTension: 0.3,
       },
     ],
   };
@@ -95,7 +83,6 @@ export default function SpeedChart({ routePoints = [] }) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: false, // Disable animation so updates are instantaneous and snappy
     plugins: {
       legend: {
         display: false, // Hide label legend to keep it clean
@@ -120,11 +107,9 @@ export default function SpeedChart({ routePoints = [] }) {
           color: 'rgba(148, 163, 184, 0.05)',
         },
         ticks: {
-          color: '#94a3b8',
-          font: { size: 10, family: 'Inter, sans-serif' },
-          autoSkip: false, // Force every label to render so the scroll is visually obvious
-          maxRotation: 45, // Angle labels to prevent overlapping
-          minRotation: 45
+          color: '#64748b',
+          font: { size: 10 },
+          maxTicksLimit: 8, // Avoid label crowding
         }
       },
       y: {
@@ -133,8 +118,8 @@ export default function SpeedChart({ routePoints = [] }) {
           color: 'rgba(148, 163, 184, 0.05)',
         },
         ticks: {
-          color: '#94a3b8',
-          font: { size: 11, family: 'Inter, sans-serif' },
+          color: '#64748b',
+          font: { size: 10 },
           callback: (value) => `${value} km/h`
         }
       }
