@@ -8,13 +8,13 @@ This presentation outline is designed to help you ace your seminar. It is struct
 ## 📽️ Slide 1: Title Slide
 * **Visuals**: A clean, dark-themed background with a map coordinate graphic, featuring the project title.
 * **Slide Text**:
-  * **Project Title**: Real-Time Vehicle Tracking & Fleet Management System (Smart Phone-as-GPS Edition)
+  * **Project Title**: Real-Time Vehicle Tracking & Fleet Management System (Hardware-First with Mobile Simulation)
   * **Presenter Name**: [Your Name]
   * **Role/Department**: [Your Department / Course Name]
   * **Date**: [Presentation Date]
 
 🎤 **Speaker Notes**:
-> "Good morning/afternoon, everyone. Today, I am excited to present my project: a **Real-Time Vehicle Tracking & Fleet Management System**. The core innovation of this system is that it replaces traditional, expensive, and fragile GPS tracking hardware with a standard smartphone or native background services. It operates dynamically over standard WebSockets and secure HTTPS protocols to deliver immediate telemetry updates to an operations control room. Let's get started."
+> "Good morning/afternoon, everyone. Today, I am excited to present my project: a **Real-Time Vehicle Tracking & Fleet Management System**. The system is architected to interface with dedicated GPS tracking hardware (such as custom Arduino + SIM808/SIM900 or commercial GPS trackers) transmitting telemetry securely over HTTPS/OsmAnd. For development, prototyping, and demonstration purposes, standard smartphones are utilized as tracking clients (acting as hardware simulators) to validate the end-to-end data pipeline. Let's get started."
 
 ---
 
@@ -27,7 +27,7 @@ This presentation outline is designed to help you ace your seminar. It is struct
   * **Backend Fatigue**: Poor database connection management (e.g. WebSocket connection leaks) can crash servers on heavy loads.
 
 🎤 **Speaker Notes**:
-> "Traditional fleet management relies heavily on custom hardware GPS trackers. These units are expensive, hard to install, and difficult to update. While mobile web apps (PWAs) are sometimes proposed as software alternatives, they suffer from severe operating system limits—Android and iOS aggressively kill background browsers to save battery. Additionally, cellular network dead zones lead to permanent gaps in trip maps. Our project directly addresses these hardware costs, battery limitations, and connection drops."
+> "Traditional fleet management relies heavily on custom hardware GPS trackers. However, during the prototyping phase of fleet software, deploying physical hardware trackers across an active fleet is highly complex and costly. Our project addresses this by developing a robust, hardware-compatible backend tracking server and dashboard, using standard smartphones as tracking client simulators to thoroughly test the data pipeline and live UI updates before hardware deployment."
 
 ---
 
@@ -35,19 +35,20 @@ This presentation outline is designed to help you ace your seminar. It is struct
 * **Visuals**: A smartphone mockup showing a live tracker, connecting to a cloud database, which pushes data directly to a desktop dashboard.
 * **Slide Text**:
   * **Decoupled Architecture**: Separation of edge client, central ingestion backend, and dashboard visualizer.
-  * **Phone-as-a-GPS Service**: Hybrid support for a responsive browser-based PWA tracker and native, system-level background clients (Traccar/GPSLogger).
+  * **Hardware-First Protocols**: Backend supports standard HTTP telemetry ingestion and native OsmAnd protocols.
+  * **Mobile Simulators**: Prototyping tools via browser-based PWA and native clients (Traccar/GPSLogger) acting as virtual tracking hardware.
   * **Offline Buffering**: Local client database buffering to prevent route gaps during network drops.
   * **Event-Driven Messaging**: Real-time server-to-client updates over persistent WebSockets.
 
 🎤 **Speaker Notes**:
-> "We propose a fully decoupled, cloud-based fleet monitoring system. By using standard smartphones as tracking nodes, we eliminate hardware costs. To bypass browser sleep issues, our backend implements standard OsmAnd protocols, allowing compatibility with native, system-level background tracking apps (like Traccar). To solve network drops, the mobile client holds points in local storage and flushes them sequentially once internet returns. The central room gets zero-latency map updates over persistent WebSockets."
+> "We propose a fully decoupled, cloud-based fleet monitoring system designed to ingest data from dedicated hardware GPS units. To facilitate development and demonstration without physical vehicle installations, we integrated software-based tracking simulators. These include a mobile browser-based PWA and native clients using the OsmAnd protocol (like Traccar). This setup allows testing of real-time maps and offline local queue flushing over WebSockets using standard devices."
 
 ---
 
 ## 📽️ Slide 4: System Architecture
 * **Visuals**: Flow diagram showing Edge Client -> HTTPS / OsmAnd -> FastAPI Backend -> PostgreSQL DB & WS Manager -> Leaflet Map.
 * **Slide Text**:
-  * **Client Layer**: HTML5 Geolocation API, localStorage queue, native background services.
+* **Client Layer**: HTML5 Geolocation API simulator, localStorage queue, native background services.
   * **Ingestion Layer**: FastAPI REST API, background worker threads, geofence boundary checkers.
   * **Storage Layer**: SQLite / PostgreSQL DB + SQLAlchemy relational models.
   * **Presentation Layer**: React, Leaflet Maps, and zero-animation Chart.js Speed Curves.

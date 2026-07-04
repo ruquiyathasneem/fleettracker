@@ -1,7 +1,7 @@
 # Real-Time Vehicle Tracking & Fleet Management System
 ## Comprehensive Project Overview & Technical Documentation
 
-This project is a production-grade, highly optimized fleet tracking and vehicle monitoring system. It replaces expensive dedicated GPS/GSM tracking hardware (such as custom Arduino + SIM808/SIM900 setups) with standard smartphones or native background services acting as edge telemetry nodes. Telemetry is securely transmitted over HTTPS and WebSockets to a centralized operations dashboard.
+This project is a production-grade, highly optimized fleet tracking and vehicle monitoring system. The system is architected to interface with dedicated GPS tracking hardware (such as custom Arduino + SIM808/SIM900 or commercial GPS trackers) transmitting telemetry securely over HTTPS/OsmAnd. For development, prototyping, and demonstration purposes, standard smartphones are utilized as tracking clients (acting as hardware simulators) to validate the end-to-end data pipeline. Telemetry is securely transmitted over HTTPS and WebSockets to a centralized operations dashboard.
 
 ---
 
@@ -22,15 +22,15 @@ This project is a production-grade, highly optimized fleet tracking and vehicle 
 ## 🏗️ System Architecture
 
 The system is built as a decoupled, client-server application optimized for low latency and high availability. It consists of three primary layers:
-1. **Edge Tracking Clients**: 
-   * A progressive web application (PWA) client running in standard mobile browsers.
-   * Third-party native clients (Traccar Client, GPSLogger) using background system services.
+1. **Edge Tracking Layers (Hardware/Simulator)**: 
+   * A progressive web application (PWA) client running in standard mobile browsers acting as a hardware simulator.
+   * Third-party native clients (Traccar Client, GPSLogger) acting as background tracking simulators during development.
 2. **Central Ingestion & Query API (Backend)**: Built with Python and FastAPI, serving REST endpoints and managing live WebSocket broadcasts.
 3. **Operations Dashboard (Frontend)**: A single-page React application rendering real-time maps, metrics, geofence configuration panels, and interactive telemetry charts.
 
 ### High-Level Data Flow
 ```
-Phone (GPS Pings / PWA) --HTTPS POST--> FastAPI Ingestion Router -> SQLAlchemy -> PostgreSQL / SQLite
+Tracking Device (GPS Pings / Simulator) --HTTPS POST--> FastAPI Ingestion Router -> SQLAlchemy -> PostgreSQL / SQLite
                                             |
                                             +--> Broadcasting via WS Manager Rooms ---> React Map & Charts
 ```
@@ -44,8 +44,8 @@ Phone (GPS Pings / PWA) --HTTPS POST--> FastAPI Ingestion Router -> SQLAlchemy -
 * **Leaflet Map Integration**: Places real-time SVG markers on an OpenStreetMap interface with bearing indicators rotating dynamically to match the vehicle's direction of travel.
 
 ### 2. Offline Telemetry Buffering
-* **Network-Resilient Logging**: The PWA client stores telemetry records inside the browser's `localStorage` when internet coverage is degraded (e.g., inside tunnels or remote areas).
-* **Automatic Queue Flushing**: Once internet access is restored, the client flushes queued logs sequentially to prevent missing points, ensuring zero-gap trip history.
+* **Network-Resilient Logging**: The tracking device (or simulator) stores telemetry records in its local storage when internet coverage is degraded (e.g., inside tunnels or remote areas).
+* **Automatic Queue Flushing**: Once internet access is restored, the device flushes queued logs sequentially to prevent missing points, ensuring zero-gap trip history.
 
 ### 3. Circular Geofencing & Event Logs
 * **Map-to-Database Geofencing**: Operators define circular geofences by clicking on the Leaflet map and specifying a radius in meters.
