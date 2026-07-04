@@ -8,6 +8,7 @@ import logging
 import os
 import asyncio
 import httpx
+from urllib.parse import unquote
 from sqlalchemy import text
 
 # Initialize logger
@@ -183,7 +184,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, db: Sessio
         return
         
     from .routers.auth import verify_token
-    payload = verify_token(token)
+    # URL-decode the token — Base64 '=' padding gets percent-encoded in WebSocket URLs
+    decoded_token = unquote(token)
+    payload = verify_token(decoded_token)
     if not payload:
         await websocket.close(code=1008)
         return
