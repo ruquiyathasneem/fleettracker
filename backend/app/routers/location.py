@@ -183,3 +183,35 @@ async def gpslogger_ingest(
         return {"status": "success"}
     except HTTPException as e:
         return {"status": "error", "detail": e.detail}
+
+@router.get("/traccar", status_code=status.HTTP_200_OK)
+async def traccar_ingest(
+    id: str, 
+    lat: float, 
+    lon: float, 
+    speed: float = 0.0, 
+    heading: float = 0.0, 
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint for Traccar Client iOS/Android App (OsmAnd protocol).
+    Traccar Server URL format:
+    https://fleettracker-backend.onrender.com/api/location/traccar
+    Device identifier is sent in the `id` parameter.
+    """
+    # Traccar speed is strictly in knots (1 knot = 1.852 km/h)
+    speed_kmph = float(speed) * 1.852 if speed else 0.0
+
+    payload = LocationLogCreate(
+        device_token=id,
+        latitude=lat,
+        longitude=lon,
+        speed_kmph=speed_kmph,
+        heading=heading
+    )
+    
+    try:
+        await post_location(payload, db)
+        return {"status": "success"}
+    except HTTPException as e:
+        return {"status": "error", "detail": e.detail}
