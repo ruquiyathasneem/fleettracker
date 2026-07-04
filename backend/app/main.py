@@ -174,15 +174,18 @@ def health_check():
 # --- WEBSOCKET ENDPOINT ---
 
 @app.websocket("/ws/live")
-async def websocket_endpoint(websocket: WebSocket, token: str = None, db: SessionLocal = Depends(SessionLocal)):
+async def websocket_endpoint(websocket: WebSocket, token: str = None):
     """
-    WebSocket endpoint for pushing real-time location logs 
+    WebSocket endpoint for pushing real-time location logs
     and geofence alerts directly to frontend dashboard clients.
+    NOTE: We do NOT use Depends() here — FastAPI WebSocket + Depends causes
+    DB session leaks (sessions are never closed on failed connections), exhausting
+    the connection pool. We open/close the session manually instead.
     """
     if not token:
         await websocket.close(code=1008)
         return
-        
+
     from .routers.auth import verify_token
     # URL-decode the token — Base64 '=' padding gets percent-encoded in WebSocket URLs
     decoded_token = unquote(token)
@@ -190,24 +193,27 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None, db: Sessio
     if not payload:
         await websocket.close(code=1008)
         return
-        
-    user = db.query(User).filter(User.username == payload.get("username")).first()
+
+    # Open DB session manually so we can guarantee it's always closed
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == payload.get("username")).first()
+    finally:
+        db.close()
+
     if not user:
         await websocket.close(code=1008)
         return
 
     await manager.connect(websocket, user.id)
-    logger.info(f"WebSocket client connected for user {user.username}. Active users connected: {len(manager.active_connections)}")
+    logger.info(f"WebSocket connected: user={user.username} active_sessions={len(manager.active_connections)}")
     try:
         while True:
-            # We keep connection open and listen for any heartbeat/messages from client
-            # (Clients don't need to post location data here, they use the POST /api/location API)
             data = await websocket.receive_text()
-            # Respond to client ping to keep connection alive
             await websocket.send_json({"event_type": "pong", "message": "heartbeat ok"})
     except WebSocketDisconnect:
         manager.disconnect(websocket, user.id)
-        logger.info(f"WebSocket client disconnected for user {user.username}.")
+        logger.info(f"WebSocket disconnected: user={user.username}")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error(f"WebSocket error for user {user.username}: {e}")
         manager.disconnect(websocket, user.id)
