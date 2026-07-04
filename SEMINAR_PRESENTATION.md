@@ -137,12 +137,13 @@ This presentation outline is designed to help you ace your seminar. It is struct
 ## 📽️ Slide 11: Conclusion & Future Scope
 * **Visuals**: A forward-looking graphic showing mobile app icons and analytics charts.
 * **Slide Text**:
-  * **Conclusion**: Successfully replaced expensive tracking hardware using standard smartphones, coupled with a robust FastAPI + React dashboard.
+  * **Conclusion**: Successfully built and validated a robust fleet tracking dashboard and backend designed for hardware GPS units, using mobile devices as simulators for prototyping.
   * **Future Scope**:
     * Integrate **PostgreSQL PostGIS** extension for custom polygon geofencing.
-    * Convert browser PWA to a compiled native application wrapper (Capacitor/React Native) for system-level foreground services.
+    * Deploy dedicated hardware GPS/GSM tracking units (like SIM808 modems) to compile field-testing data.
     * Add OBD-II bluetooth sensor integrations to monitor vehicle health and fuel consumption.
 
 🎤 **Speaker Notes**:
-> "In conclusion, this project successfully demonstrates that expensive tracking hardware can be replaced by smartphone applications and background services. By building a high-performance backend and a WebSocket dashboard, we created a stable tracking platform. In the future, we plan to use PostgreSQL's PostGIS spatial extension for complex polygon boundaries and bundle the tracking client into a native wrapper for permanent background service tracking. Thank you, and I am open to any questions."
+> "In conclusion, this project successfully demonstrates a high-performance backend and WebSocket dashboard designed for dedicated hardware GPS tracking units. We validated this architecture during our prototyping phase by using standard mobile devices as telemetry simulators. In the future, we plan to deploy the system with dedicated physical GPS hardware like SIM808 modules, integrate PostgreSQL's PostGIS spatial extension for complex polygon boundaries, and add OBD-II sensor diagnostics. Thank you, and I am open to any questions."
+
 
