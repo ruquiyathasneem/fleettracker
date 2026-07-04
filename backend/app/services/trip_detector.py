@@ -18,9 +18,9 @@ def process_location_for_trip(db: Session, vehicle_id: int, lat: float, lng: flo
     # If speed is None, treat it as 0.0
     speed = speed_kmph if speed_kmph is not None else 0.0
 
-    # 2. If no active trip, see if we should start one (speed > 0.0 km/h since frontend filters drift)
+    # 2. If no active trip, see if we should start one (speed >= 0.0 km/h to capture stationary starts)
     if not active_trip:
-        if speed > 0.0:
+        if speed >= 0.0:
             new_trip = Trip(
                 vehicle_id=vehicle_id,
                 start_time=recorded_at,
