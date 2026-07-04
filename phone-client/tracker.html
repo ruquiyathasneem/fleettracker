@@ -287,21 +287,29 @@
 
     var currentManualSpeed = 0;
 
+    var lastPositionTime = 0;
+
     function onPositionUpdate(pos) {
-      if (lastPosition && lastPosition !== pos && pos.timestamp > lastPosition.timestamp) {
+      var now = Date.now();
+      if (lastPosition && lastPosition.coords) {
         var cc = pos.coords;
         var pc = lastPosition.coords;
         var dLat = (cc.latitude - pc.latitude) * Math.PI / 180;
         var dLon = (cc.longitude - pc.longitude) * Math.PI / 180;
         var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(pc.latitude * Math.PI / 180) * Math.cos(cc.latitude * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
         var distM = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        var timeS = (pos.timestamp - lastPosition.timestamp) / 1000;
-        if (timeS > 0) {
+        var timeS = (now - lastPositionTime) / 1000;
+        
+        if (timeS > 1) { // Only calculate if at least 1 second passed to prevent micro-jitter spikes
           currentManualSpeed = (distM / timeS) * 3.6;
+          lastPositionTime = now;
+          lastPosition = pos;
         }
+      } else {
+        lastPosition = pos;
+        lastPositionTime = now;
       }
 
-      lastPosition = pos;
       var c = pos.coords;
       var hwSpeed = (c.speed !== null && c.speed !== undefined && !isNaN(c.speed)) ? (c.speed * 3.6) : 0;
       var speedKmh = Math.max(hwSpeed, currentManualSpeed);
